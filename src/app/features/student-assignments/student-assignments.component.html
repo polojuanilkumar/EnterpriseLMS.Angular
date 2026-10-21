@@ -1,0 +1,47 @@
+<section class="student-viewer" aria-labelledby="assignments-title">
+  <nav aria-label="Breadcrumb" class="mb-6 flex flex-wrap gap-4 text-blue-700"><a routerLink="/workspace/student/assignments/history">My submission history</a><a routerLink="/workspace/student/grades">My Grades</a>@if (!history) { <a [routerLink]="rootPath">Lesson assignments</a><a [routerLink]="lessonPath">Lesson viewer (published content)</a> }</nav>
+  <h1 id="assignments-title" class="text-3xl font-bold text">{{ history ? 'My submission history' : store.data()?.assignment?.title || 'Lesson assignments' }}</h1>
+  @if (store.loading()) { <p role="status" class="mt-4">Loading stored assignments...</p> }
+  @if (store.pending()) { <p role="status" class="mt-4">Submitting and checking stored work. Do not upload again.</p> }
+  @if (store.error()) { <p role="alert" class="mt-4 text-red-800">{{ store.error() }}</p> }
+  @if (store.notice()) { <p role="alert" class="mt-4 rounded border p-4">{{ store.notice() }}</p> }
+  <button type="button" (click)="reload()" [disabled]="store.loading() || store.pending()" class="mt-4 rounded border px-4 py-2">Reload stored state</button>
+  @if (store.data(); as data) {
+    @if (history) {
+      <p class="mt-4">Your own Active/Completed enrollment history, including submitted work after unpublishing. Cancelled enrollment work is inaccessible.</p>
+      <ul>@for (row of data.rows || []; track row.submissionId) { <li class="rounded border bg-white p-4"><a [routerLink]="historyPath(row)" class="text text-blue-700">{{ row.title }}</a><p>Submitted (UTC): {{ row.submittedAt | date:'medium':'UTC' }} UTC. {{ row.graded ? 'Graded' : 'Submitted / ungraded' }}</p></li> } @empty { <li>No accessible historical submissions.</li> }</ul>
+    } @else if (data.assignment; as assignment) {
+      <p class="mt-4 text">{{ assignment.instructions }}</p><p class="mt-4">Maximum marks: {{ assignment.maximumMarks }}. {{ assignment.isPublished ? 'Published' : 'Historical unpublished assignment' }}</p>
+      <p class="mt-3">Due (UTC): {{ assignment.dueAtUtc ? (assignment.dueAtUtc | date:'medium':'UTC') + ' UTC' : 'No due date' }}</p>
+      @if (assignment.dueAtUtc) { <p>Due (your device local time): {{ assignment.dueAtUtc | date:'medium' }}.</p> }
+      <p class="mt-3">Enrollment: {{ data.enrollmentStatus === 1 ? 'Active' : 'Completed' }}. Server time controls the deadline and the server rechecks every submission.</p>
+      @if (data.submission; as work) {
+        <h2 class="mt-6 text-xl font-bold">Your final submission</h2><p>Submitted (UTC): {{ work.submittedAt | date:'medium':'UTC' }} UTC.</p>
+        <h3 class="mt-4 font-bold">Instructions at submission</h3><p class="text">{{ work.instructionsSnapshot }}</p>
+        <h3 class="mt-4 font-bold">Submitted plain text</h3><p class="text">{{ work.text || 'No plain text submitted.' }}</p>
+        @if (work.hasAttachment) { <p class="mt-4"><a [href]="attachment(work.id)">Download your PDF attachment</a></p> }
+        <p class="mt-4">Maximum marks at submission: {{ work.maximumMarksSnapshot }}.</p>
+        @if (work.grade; as grade) { <h3 class="mt-4 font-bold">Grade and feedback</h3><p>Graded: {{ grade.marks }} / {{ work.maximumMarksSnapshot }}. Graded (UTC): {{ grade.gradedAt | date:'medium':'UTC' }} UTC.</p><p class="mt-3 text">{{ grade.feedback || 'No feedback provided.' }}</p> }
+        @else { <p class="mt-4">Submitted / ungraded. Awaiting staff grading.</p> }
+      } @else {
+        <h2 class="mt-6 text-xl font-bold">Your submission state</h2>
+        <ul>@for (work of data.submissions || []; track work.id) { <li><a [routerLink]="[...rootPath, assignment.id, 'submissions', work.id]">Review submitted work and {{ work.grade ? 'grade/feedback' : 'ungraded status' }}</a></li> } @empty { <li>Not submitted.</li> }</ul>
+        @if (store.recovery()) { <p class="mt-3">Previous file/text inputs were discarded. Inspect stored state before selecting work again.</p><button type="button" (click)="store.acknowledgeRecovery()" [disabled]="store.pending()" class="mt-3 rounded border px-4 py-2">I checked stored submission state</button> }
+        @if (data.canSubmit) {
+          <p class="mt-4">One final submission: plain text (100000 characters maximum), one optional PDF (25 MiB maximum), or both. No drafts, resubmission or late overrides. The server validates the PDF signature and actual size.</p>
+          <fieldset class="mt-4" [disabled]="store.pending() || store.loading() || store.recovery() || store.confirming()"><legend class="font-bold">Final work</legend>
+            <label for="assignment-text" class="mt-3 block">Plain-text work</label><textarea id="assignment-text" maxlength="100000" [ngModel]="store.text()" (ngModelChange)="store.editText($event)" class="mt-2 w-full rounded border p-3" rows="8"></textarea>
+            <label for="assignment-file" class="mt-4 block">Optional single PDF (25 MiB)</label><input #fileInput id="assignment-file" type="file" accept="application/pdf,.pdf" (change)="selectFile($any($event.target))" class="mt-2 max-w-full">
+          </fieldset>
+          @if (store.validation()) { <p role="alert" class="mt-3 text-red-800">{{ store.validation() }}</p> }
+          @if (store.confirming()) {
+            <fieldset class="mt-4 rounded border p-4" [disabled]="store.pending()"><legend class="font-bold">Confirm final submission</legend><p>This final work cannot be replaced. Submit now?</p><button type="button" (click)="store.submit()" class="mt-3 rounded bg-blue-700 px-4 py-2 text-white">Confirm and submit final work</button><button type="button" (click)="store.confirming.set(false)" class="ml-3 mt-3 rounded border px-4 py-2">Go back</button></fieldset>
+          } @else { <button type="button" (click)="store.askSubmit()" [disabled]="store.pending() || store.recovery()" class="mt-4 rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50">Review final submission</button> }
+        } @else if (!data.submissions?.length) { <p class="mt-4">New submission is unavailable. Active enrollment and published course, lesson and assignment are required.</p> }
+      }
+    } @else {
+      <ul>@for (assignment of data.assignments || []; track assignment.id) { <li class="rounded border bg-white p-4"><a [routerLink]="[...rootPath, assignment.id]" class="text text-blue-700">{{ assignment.title }}</a><p>Maximum marks: {{ assignment.maximumMarks }}. {{ assignment.isPublished ? 'Published' : 'Historical unpublished work' }}</p><p>Due (UTC): {{ assignment.dueAtUtc ? (assignment.dueAtUtc | date:'medium':'UTC') + ' UTC' : 'No due date' }}</p></li> } @empty { <li>No published assignments or your historical work are available.</li> }</ul>
+    }
+    <p class="mt-6 text-sm">Assignment grades do not change lesson or course completion.</p>
+  }
+</section>

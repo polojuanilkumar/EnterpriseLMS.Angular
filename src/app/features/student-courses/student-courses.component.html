@@ -1,0 +1,63 @@
+<section aria-labelledby="courses-title">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <div><p class="text-sm font-semibold text-blue-700">Student workspace</p><h1 id="courses-title" class="mt-2 text-3xl font-bold">{{ mode === 'catalog' ? 'Published course catalog' : 'My Courses' }}</h1></div>
+    <a [routerLink]="mode === 'catalog' ? '/workspace/student/my-courses' : '/workspace/student/catalog'" class="rounded-lg border border-blue-700 bg-white px-4 py-2 font-semibold text-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">{{ mode === 'catalog' ? 'My Courses' : 'Browse catalog' }}</a>
+  </div>
+  <p class="mt-4 text-slate-600">{{ mode === 'catalog' ? 'Browse published courses available in your selected organization.' : 'Your stored enrollments in this organization, including completed and cancelled records.' }}</p>
+  @if (store.actionError()) { <p role="alert" class="mt-5 rounded-lg bg-red-50 p-4 text-red-800">{{ store.actionError() }}</p> }
+  @if (store.notice()) { <p role="status" class="mt-5 rounded-lg bg-blue-50 p-4 text-blue-900">{{ store.notice() }}</p> }
+  @if (store.loading()) {
+    <p role="status" class="mt-8">Loading stored courses...</p>
+  } @else if (store.loadError()) {
+    <p role="alert" class="mt-6 text-red-800">{{ store.loadError() }}</p>
+    <button type="button" (click)="store.refresh()" [disabled]="!!store.pending()" class="mt-4 rounded-lg bg-blue-700 px-4 py-2 text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60">Reload list</button>
+  } @else if (store.rows().length === 0) {
+    <p role="status" class="mt-8 rounded-xl border border-slate-200 bg-white p-6">{{ mode === 'catalog' ? 'No published courses are available in this organization.' : 'You have no enrollments in this organization. Browse the catalog to enroll.' }}</p>
+  } @else {
+    <ul class="mt-8 grid gap-5 lg:grid-cols-2" aria-label="Courses">
+      @for (row of store.rows(); track row.courseId) {
+        <li class="flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 class="break-words text-xl font-bold">{{ row.course?.title || 'Course unavailable' }}</h2>
+          @if (row.course; as course) {
+            <p class="mt-3 whitespace-pre-line break-words text-slate-600">{{ course.description || 'No description provided.' }}</p>
+            <dl class="mt-5 grid grid-cols-2 gap-3 text-sm">
+              <div><dt class="text-slate-500">Category</dt><dd class="break-words font-medium">{{ course.categoryName || 'Uncategorized' }}</dd></div>
+              <div><dt class="text-slate-500">Level</dt><dd class="font-medium">{{ course.level || 'Not specified' }}</dd></div>
+              <div><dt class="text-slate-500">Duration</dt><dd class="font-medium">{{ course.durationInMinutes }} minutes</dd></div>
+            </dl>
+          }
+          <p class="mt-5 font-semibold">Enrollment: {{ row.enrollment?.status || 'Not enrolled' }}</p>
+          @if (!row.course?.isAvailable) { <p class="mt-3 text-sm text-slate-600">This course is currently unpublished or unavailable. Enrollment history is retained.</p> }
+          @if (row.enrollment?.status === 'Completed') { <p class="mt-3 text-sm text-slate-600">This enrollment is completed. Re-enrollment is not supported for completed records.</p> }
+          @if (store.pending() === row.courseId) { <p role="status" class="mt-4">Saving and refreshing stored enrollment...</p> }
+          <div class="mt-auto pt-5">
+            @if (mode === 'mine' && row.course?.isAvailable && (row.enrollment?.status === 'Active' || row.enrollment?.status === 'Completed')) {
+              <a [routerLink]="['/workspace/student/courses', row.courseId]" class="mr-4 inline-block rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">Open course</a>
+            }
+            @if (row.course?.isAvailable && !row.enrollment) {
+              <button type="button" (click)="store.act(row, 'enroll')" [disabled]="!!store.pending()" class="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-wait disabled:opacity-60" [attr.aria-label]="'Enroll in ' + row.course?.title">Enroll</button>
+            }
+            @if (row.course?.isAvailable && row.enrollment?.status === 'Cancelled') {
+              <button type="button" (click)="store.ask(row, 'reenroll')" [disabled]="!!store.pending()" class="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-60">Re-enroll</button>
+            }
+            @if (row.enrollment?.status === 'Active') {
+              <button type="button" (click)="store.ask(row, 'cancel')" [disabled]="!!store.pending()" class="rounded-lg border border-red-700 px-4 py-2 font-semibold text-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-60">Cancel enrollment</button>
+            }
+          </div>
+          @if (store.confirmation(); as confirmation) {
+            @if (confirmation.row === row) {
+              <fieldset class="mt-5 rounded-lg border border-amber-300 bg-amber-50 p-4" [disabled]="!!store.pending()">
+                <legend class="px-1 font-semibold">{{ confirmation.action === 'cancel' ? 'Confirm cancellation' : 'Confirm re-enrollment' }}</legend>
+                <p class="text-sm">{{ confirmation.action === 'cancel' ? 'Cancel this Active enrollment? Learning access will end.' : 'Reactivate your existing Cancelled enrollment for this course?' }}</p>
+                <div class="mt-4 flex flex-wrap gap-3">
+                  <button type="button" (click)="store.confirm()" class="rounded bg-blue-700 px-4 py-2 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">{{ confirmation.action === 'cancel' ? 'Confirm cancellation' : 'Confirm re-enrollment' }}</button>
+                  <button type="button" (click)="store.confirmation.set(null)" class="rounded border bg-white px-4 py-2 focus-visible:outline-2 focus-visible:outline-blue-600">Go back</button>
+                </div>
+              </fieldset>
+            }
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>

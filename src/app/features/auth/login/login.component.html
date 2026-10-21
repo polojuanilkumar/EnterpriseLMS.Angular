@@ -1,0 +1,48 @@
+<main class="flex min-h-dvh items-center justify-center bg-slate-100 px-4 py-10 font-sans text-slate-900 sm:px-6">
+  <div class="w-full max-w-md">
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-10" aria-labelledby="login-title">
+      <app-brand />
+      <div class="mb-8 mt-10">
+        <h1 id="login-title" class="text-2xl font-bold tracking-tight">Sign in to your workspace</h1>
+        <p class="mt-2 text-sm leading-6 text-slate-600">Your learning journey starts here.</p>
+      </div>
+      <form [attr.aria-busy]="pending()" [formGroup]="form" (ngSubmit)="submit()" novalidate class="space-y-6">
+        <div>
+          <label for="email" class="block text-sm font-semibold">Email address</label>
+          <input id="email" name="email" type="email" formControlName="email" autocomplete="username" maxlength="254" required [readOnly]="pending()"
+            [attr.aria-invalid]="showError('email')"
+            [attr.aria-describedby]="showError('email') ? 'email-error' : null"
+            class="mt-2 block w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-base outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2" />
+          @if (showError('email')) {
+            <p id="email-error" class="mt-2 text-sm text-red-700" role="alert">
+              {{ form.controls.email.hasError('required') ? 'Enter your email address.' : 'Enter a valid email address.' }}
+            </p>
+          }
+        </div>
+        <div>
+          <label for="password" class="block text-sm font-semibold">Password</label>
+          <div class="relative mt-2">
+            <input id="password" name="password" [type]="passwordVisible ? 'text' : 'password'" formControlName="password"
+              autocomplete="current-password" maxlength="1024" required [readOnly]="pending()"
+              [attr.aria-invalid]="showError('password')"
+              [attr.aria-describedby]="showError('password') ? 'password-error' : null"
+              class="block w-full rounded-lg border border-slate-300 bg-white py-3 pl-3 pr-20 text-base outline-none focus-visible:border-blue-600 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2" />
+            <button type="button" (click)="passwordVisible = !passwordVisible" aria-controls="password"
+              [attr.aria-label]="passwordVisible ? 'Hide password' : 'Show password'"
+              [attr.aria-pressed]="passwordVisible"
+              class="absolute inset-y-1 right-1 rounded-md px-3 text-sm font-semibold text-blue-700 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+              {{ passwordVisible ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+          @if (showError('password')) {
+            <p id="password-error" class="mt-2 text-sm text-red-700" role="alert">Enter your password (up to 1024 characters).</p>
+          }
+        </div>
+        <button type="submit" [disabled]="pending()" class="w-full rounded-lg bg-blue-700 px-4 py-3 text-sm font-semibold text-white shadow-sm disabled:cursor-wait disabled:opacity-60 transition-colors hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600">{{ pending() ? 'Signing in?' : 'Sign in' }}</button>
+        <p role="status" aria-live="polite" aria-atomic="true" class="text-sm leading-6 text-slate-700">{{ connectionMessage() || auth.state.notice() }}</p>
+        <a routerLink="/account/forgot-password" class="block text-center text-sm text-blue-700 underline">Forgot password?</a>
+      </form>
+    </section>
+    <p class="mt-6 text-center text-xs leading-5 text-slate-500">Enterprise LMS · A space to learn and grow</p>
+  </div>
+</main>

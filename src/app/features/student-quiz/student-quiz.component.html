@@ -1,0 +1,59 @@
+<section aria-labelledby="quiz-title" class="student-viewer">
+  <nav aria-label="Breadcrumb" class="mb-6 flex flex-wrap gap-3 text-blue-700"><a routerLink="/workspace/student/my-courses">My Courses</a><a [routerLink]="lessonPath">Back to lesson</a><a [routerLink]="quizPath">Quiz instructions/history</a></nav>
+  <h1 id="quiz-title" class="text-3xl font-bold text">{{ store.page()?.quiz?.title || 'Lesson quiz' }}</h1>
+  <p class="mt-3">Answers are held only in memory. Refreshing or resuming restores the attempt and server deadline, not unsent selections. Passing this quiz is not a course-completion requirement.</p>
+  @if (store.notice()) { <p role="alert" class="mt-4 rounded border p-4">{{ store.notice() }}</p> }
+  @if (store.loading()) { <p role="status" class="mt-4">Loading stored quiz status...</p> }
+  @if (store.pending()) { <p role="status" class="mt-4">Checking the action and stored status. Do not submit again.</p> }
+  @if (store.error()) { <p role="alert" class="mt-4 text-red-800">{{ store.error() }}</p> }
+  <button type="button" class="mt-4 rounded border px-4 py-2" (click)="reload()" [disabled]="store.pending() || store.loading()">Refresh stored history/status</button>
+  @if (store.page(); as page) {
+    @if (page.quiz; as quiz) {
+      <p class="mt-4 text">{{ quiz.description }}</p>
+      <dl class="mt-4 grid gap-3 sm:grid-cols-2"><div><dt>Passing percentage</dt><dd>{{ quiz.passingPercentage }}%</dd></div><div><dt>Time limit</dt><dd>{{ quiz.timeLimitInMinutes }} minutes</dd></div><div><dt>Maximum attempts</dt><dd>{{ quiz.maxAttempts }}</dd></div><div><dt>Attempts recorded</dt><dd>{{ page.attempts.length }}</dd></div></dl>
+      <p class="mt-4">{{ page.active ? 'Active enrollment. Eligibility is advisory; the server revalidates every action.' : 'Completed enrollment. History and permitted results remain available; start and submission are disabled.' }}</p>
+      @if (store.recovery()) { <p class="mt-3">Previous selections were discarded. Inspect stored history/status before deciding to start or enter answers again.</p><button type="button" (click)="store.acknowledgeRecovery()" [disabled]="store.pending()" class="mt-3 rounded border px-4 py-2">I checked the stored status</button> }
+      @if (store.liveAttempt(); as current) { <p class="mt-4"><a [routerLink]="[...quizPath, 'attempts', current.attemptId]">Resume existing attempt / check status</a></p> }
+      @else if (store.canStart()) { <button type="button" (click)="start()" class="mt-4 rounded bg-blue-700 px-4 py-2 text-white">Start attempt (starts server timer)</button> }
+      @else if (page.active && page.attempts.length >= quiz.maxAttempts) { <p class="mt-4">Maximum attempts recorded. The server enforces the attempt limit.</p> }
+      <h2 class="mt-6 text-xl font-bold">Attempt history</h2>
+      <ol>
+        @for (attempt of page.attempts; track attempt.attemptId) {
+          <li class="rounded border p-4">Attempt {{ attempt.attemptNumber }}: {{ attempt.status === 1 ? 'Started (server checks expiration)' : attempt.status === 2 ? 'Submitted' : 'Expired' }}. Deadline: {{ attempt.deadline | date:'medium' }}.
+            @if (attempt.status === 2) { <p>Stored marks: {{ attempt.earnedMarks }} / {{ attempt.possibleMarks }}. {{ attempt.isPassed === true ? 'Passed' : attempt.isPassed === false ? 'Not passed' : 'No scored submission' }}</p> }
+            <a [routerLink]="[...quizPath, 'attempts', attempt.attemptId]">{{ attempt.status === 1 ? 'Resume / check status' : attempt.status === 2 ? 'View result and selected answers' : 'View expired status' }}</a>
+          </li>
+        } @empty { <li>No attempts have been recorded.</li> }
+      </ol>
+      @if (page.attempt; as attempt) {
+        @if (attempt.status === 1) {
+          <p class="mt-4">Server deadline: {{ attempt.deadline | date:'medium' }}.</p>
+          <p role="timer" aria-live="off" class="mt-2">Time remaining: {{ store.remaining() }} seconds. Server time is authoritative; your device clock may differ.</p>
+          @if (store.remaining() === 0) { <p role="status" class="mt-3">Displayed deadline reached. No answers are sent automatically. Refresh stored status; any deliberate submission is decided by the server.</p> }
+          <fieldset class="mt-4" [disabled]="!store.canSubmit() || store.confirming()">
+            <legend class="font-bold">Unsubmitted answers</legend>
+            @for (question of page.questions; track question.id) {
+              <fieldset class="mt-4 rounded border p-4"><legend class="text">{{ question.questionText }} ({{ question.marks }} marks) — {{ question.questionType === 2 ? 'MultipleChoice: select any applicable options' : question.questionType === 3 ? 'TrueFalse: select one option' : 'SingleChoice: select one option' }}</legend>
+                @for (option of question.options; track option.id) {
+                  <label class="my-3 flex items-start gap-3 text"><input [type]="question.questionType === 2 ? 'checkbox' : 'radio'" [name]="'question-' + question.id" [value]="option.id" [checked]="(store.answers()[question.id] || []).includes(option.id)" (change)="store.choose(question, option.id, $any($event.target).checked)"><span>{{ option.optionText }}</span></label>
+                }
+              </fieldset>
+            } @empty { <p class="mt-3">No safe questions are available.</p> }
+          </fieldset>
+          @if (store.canSubmit() && page.questions.length) {
+            @if (store.confirming()) {
+              <fieldset class="mt-4 rounded border p-4"><legend class="font-bold">Confirm submission</legend><p>Submit these selections, including unanswered questions, for server scoring?</p><button type="button" (click)="store.submit()" class="mt-3 rounded bg-blue-700 px-4 py-2 text-white">Confirm submission</button><button type="button" (click)="store.confirming.set(false)" class="ml-3 mt-3 rounded border px-4 py-2">Go back</button></fieldset>
+            } @else { <button type="button" (click)="store.askSubmit()" class="mt-4 rounded bg-blue-700 px-4 py-2 text-white">Review and submit answers</button> }
+          }
+        } @else if (attempt.status === 3) { <p role="status" class="mt-4">This attempt is expired. It has no submitted result or permitted answer review.</p> }
+      }
+      @if (page.result; as result) {
+        <h2 class="mt-6 text-xl font-bold">Stored result</h2><p class="mt-3">Marks: {{ result.earnedMarks }} / {{ result.possibleMarks }}. Passing percentage at start: {{ result.passingPercentageSnapshot }}%. {{ result.isPassed === true ? 'Passed' : result.isPassed === false ? 'Not passed' : 'No scored submission' }}.</p>
+      }
+      @if (page.review; as review) {
+        <h2 class="mt-6 text-xl font-bold">Permitted selected-answer review</h2><p class="mt-3">These are stored selected-answer snapshots. Correct answer keys are not disclosed.</p>
+        @for (answer of review.answers; track answer.questionId) { <section class="mt-4 rounded border p-4"><h3 class="font-bold text">{{ answer.questionText }}</h3>@for (option of answer.selectedOptions; track option.optionId) { <p class="mt-2 text">Selected: {{ option.optionText }}</p> } @empty { <p>No option selected.</p> }</section> }
+      }
+    } @else { <p class="mt-4">No published quiz is available for this lesson.</p> }
+  }
+</section>

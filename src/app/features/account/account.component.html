@@ -1,0 +1,37 @@
+<main class="mx-auto max-w-xl space-y-5 p-6 text-slate-900">
+  <nav aria-label="Account"><a routerLink="/login" class="text-blue-700 underline">Sign in</a> | <a routerLink="/account/forgot-password" class="text-blue-700 underline">Password recovery</a> | <a routerLink="/organizations" class="text-blue-700 underline">My organizations</a></nav>
+  <h1 class="text-2xl font-bold">{{ mode === 'invitation' ? 'Accept invitation' : mode === 'reset-password' ? 'Reset password' : 'Forgot password' }}</h1>
+  @if (loading()) { <p role="status">Checking private link...</p> }
+  @if (error()) { <p role="alert" class="rounded bg-red-50 p-4 text-red-800">{{ error() }}</p> }
+  @if (message()) { <p role="status" class="rounded bg-blue-50 p-4">{{ message() }}</p> }
+  @if (preview(); as p) {
+    <section class="space-y-2 rounded border bg-white p-4"><h2 class="font-semibold">{{ p.organization }}</h2><p>{{ p.email }}</p><p>Role: {{ p.role === 1 ? 'Student' : p.role === 2 ? 'Instructor' : 'Admin' }}</p>
+      @if (p.existingAccount) { <p>Sign in as the matching verified account before accepting. Signing in does not accept the invitation.</p> }
+    </section>
+    @if (p.existingAccount && !auth.state.session() && !locked()) {
+      <form #login="ngForm" (ngSubmit)="signIn(login)" class="space-y-4 rounded border p-4">
+        <label class="block">Password for {{ p.email }}<input name="loginPassword" type="password" autocomplete="current-password" required maxlength="1024" [(ngModel)]="loginPassword" class="mt-1 block w-full rounded border p-3"></label>
+        <button type="submit" [disabled]="login.invalid || pending()" class="rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50">Sign in as invited account</button>
+      </form>
+    }
+    @if (p.existingAccount && auth.state.session()) { <p>The server verifies that this signed-in account matches the invitation. To change accounts, sign out from your workspace and reopen the original link.</p> }
+  }
+  @if (!locked() && !loading() && (mode === 'forgot-password' || available() || preview() && (!preview()!.existingAccount || auth.state.session()))) {
+    <form #account="ngForm" (ngSubmit)="submit(account)" class="space-y-4 rounded border bg-white p-5">
+      @if (mode === 'forgot-password') {
+        <p>Recovery is available for eligible existing accounts. New accounts require an organization invitation.</p>
+        <label class="block">Email<input name="email" type="email" autocomplete="email" required email maxlength="256" [(ngModel)]="email" class="mt-1 block w-full rounded border p-3"></label>
+      }
+      @if (mode === 'invitation' && !preview()?.existingAccount) {
+        <label class="block">First name<input name="firstName" required maxlength="100" autocomplete="given-name" [(ngModel)]="firstName" class="mt-1 block w-full rounded border p-3"></label>
+        <label class="block">Last name<input name="lastName" required maxlength="100" autocomplete="family-name" [(ngModel)]="lastName" class="mt-1 block w-full rounded border p-3"></label>
+      }
+      @if (mode === 'reset-password' || mode === 'invitation' && !preview()?.existingAccount) {
+        <label class="block">New password<input name="password" type="password" autocomplete="new-password" required maxlength="1024" [(ngModel)]="password" class="mt-1 block w-full rounded border p-3"></label>
+        <p class="text-sm">The server validates the existing password policy. Passwords clear after every request.</p>
+      }
+      <button type="submit" [disabled]="account.invalid || pending()" class="rounded bg-blue-700 px-4 py-3 font-semibold text-white disabled:opacity-50">{{ pending() ? 'Submitting...' : mode === 'invitation' ? 'Confirm invitation acceptance' : mode === 'reset-password' ? 'Reset password' : 'Request recovery instructions' }}</button>
+    </form>
+  }
+  @if (mode !== 'forgot-password' && !pending()) { <button type="button" (click)="load()" class="rounded border px-4 py-2">Check link status (read only)</button> }
+</main>

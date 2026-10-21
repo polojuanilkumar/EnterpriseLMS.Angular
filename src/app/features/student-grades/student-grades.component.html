@@ -1,0 +1,48 @@
+<section class="student-viewer" aria-labelledby="grades-title">
+  <nav aria-label="Breadcrumb" class="mb-6 flex flex-wrap gap-4 text-blue-700"><a routerLink="/workspace/student/grades">My Grades</a><a routerLink="/workspace/student/assignments/history">My submission history</a></nav>
+  <h1 id="grades-title" class="text-3xl font-bold text">{{ store.data()?.course?.title || 'My Grades' }}</h1>
+  <p class="mt-4">Each quiz attempt and assignment grade is shown independently using stored score snapshots. No official best/latest attempt or overall course grade is calculated.</p>
+  <form (ngSubmit)="apply()" class="mt-5 flex flex-wrap items-end gap-4">
+    @if (!courseId) {
+      <label>Course title search (up to 100 characters)<input name="search" maxlength="100" [(ngModel)]="filters['search']" class="mt-2 block rounded border p-2"></label>
+      <label>Course publication<select name="published" [(ngModel)]="filters['published']" class="mt-2 block rounded border p-2"><option value="">All</option><option value="true">Published</option><option value="false">Unpublished</option></select></label>
+      <label>Enrollment<select name="enrollmentStatus" [(ngModel)]="filters['enrollmentStatus']" class="mt-2 block rounded border p-2"><option value="">Active and Completed</option><option value="1">Active</option><option value="2">Completed</option></select></label>
+    } @else {
+      <label>Quiz state<select name="quizStatus" [(ngModel)]="filters['quizStatus']" class="mt-2 block rounded border p-2"><option value="">All</option><option value="0">Not attempted</option><option value="1">Started</option><option value="2">Submitted</option><option value="3">Expired</option></select></label>
+      <label>Assignment state<select name="assignmentStatus" [(ngModel)]="filters['assignmentStatus']" class="mt-2 block rounded border p-2"><option value="">All</option><option value="0">Not submitted</option><option value="1">Ungraded</option><option value="2">Graded</option></select></label>
+    }
+    <label>Rows per page (1–50)<input name="pageSize" type="number" min="1" max="50" required [(ngModel)]="filters['pageSize']" class="mt-2 block w-24 rounded border p-2"></label><button type="submit" class="rounded bg-blue-700 px-4 py-2 text-white">Apply filters</button>
+  </form>
+  @if (store.loading()) { <p role="status" class="mt-4">Loading stored grades...</p> }
+  @if (store.error()) { <p role="alert" class="mt-4 text-red-800">{{ store.error() }}</p><button type="button" (click)="reload()" class="mt-3 rounded border px-4 py-2">Reload grades</button> }
+  @if (store.data(); as data) {
+    @if (data.courses; as page) {
+      <p class="mt-5">{{ page.total }} matching courses. Page {{ page.page }}.</p>
+      <ul>@for (course of page.items; track course.courseId) { <li class="rounded border bg-white p-4"><a [routerLink]="['/workspace/student/grades/courses', course.courseId]" class="text text-blue-700">{{ course.title }}</a><p>{{ course.published ? 'Published' : 'Historical unpublished course' }}. Enrollment: {{ course.enrollmentStatus === 1 ? 'Active' : 'Completed' }}.</p><p>Current progress: {{ course.completedPublishedLessons }} / {{ course.publishedLessons }} ({{ course.currentPercentage }}%). Historical enrollment completed (UTC): {{ course.enrollmentCompletedAt ? (course.enrollmentCompletedAt | date:'medium':'UTC') + ' UTC' : 'Not recorded' }}.</p></li> } @empty { <li>No accessible courses on this page.</li> }</ul>
+      <nav aria-label="Course gradebook pages" class="mt-4 flex gap-5">@if (page.page > 1) { <a [routerLink]="[]" [queryParams]="pageQuery('page', page.page - 1)">Previous course page</a> } @if (hasNext(page)) { <a [routerLink]="[]" [queryParams]="pageQuery('page', page.page + 1)">Next course page</a> }</nav>
+    }
+    @if (data.course; as course) {
+      <h2 class="mt-6 text-xl font-bold">Current progress and historical enrollment</h2><p class="mt-3">Current published-content progress: {{ course.completedPublishedLessons }} / {{ course.publishedLessons }} ({{ course.currentPercentage }}%).</p>
+      <p>Historical enrollment: {{ course.enrollmentStatus === 1 ? 'Active' : 'Completed' }}. Completed at (UTC): {{ course.enrollmentCompletedAt ? (course.enrollmentCompletedAt | date:'medium':'UTC') + ' UTC' : 'Not recorded' }}. Stored enrollment percentage: {{ course.storedEnrollmentPercentage }}%.</p>
+      @if (data.quizzes; as page) {
+        <h2 class="mt-6 text-xl font-bold">Individual quiz attempts</h2><p>{{ page.total }} matching rows. Page {{ page.page }}.</p>
+        <ul>@for (row of page.items; track row.quizId + ':' + row.attemptId) { <li class="rounded border bg-white p-4"><h3 class="font-bold text">{{ row.title }} @if (row.attemptNumber !== null) { — attempt {{ row.attemptNumber }} }</h3><p>{{ quizState(row) }}</p>
+          @if (row.resultAvailable) { <p>Stored score: {{ row.earnedMarks }} / {{ row.possibleMarks }}. {{ row.passed ? 'Passed' : 'Not passed' }}. Passing percentage snapshot: {{ row.passingPercentageSnapshot }}%.</p> }
+          @if (row.deadline) { <p>Deadline (UTC): {{ row.deadline | date:'medium':'UTC' }} UTC.</p> }
+          @if (row.detailAvailable) { <a [routerLink]="quizLink(row)">Open authorized quiz {{ row.attemptId ? 'attempt/result' : 'instructions' }}</a> } @else { <p>Detailed quiz page unavailable while parent content or quiz is unpublished. Stored outcomes remain unchanged.</p> }
+        </li> } @empty { <li>No accessible quiz assessments on this page.</li> }</ul>
+        <nav aria-label="Quiz grade pages" class="mt-4 flex gap-5">@if (page.page > 1) { <a [routerLink]="[]" [queryParams]="pageQuery('quizPage', page.page - 1)">Previous quiz page</a> } @if (hasNext(page)) { <a [routerLink]="[]" [queryParams]="pageQuery('quizPage', page.page + 1)">Next quiz page</a> }</nav>
+      }
+      @if (data.assignments; as page) {
+        <h2 class="mt-6 text-xl font-bold">Assignments</h2><p>{{ page.total }} matching rows. Page {{ page.page }}.</p>
+        <ul>@for (row of page.items; track row.assignmentId) { <li class="rounded border bg-white p-4"><h3 class="font-bold text">{{ row.title }}</h3><p>{{ assignmentState(row.status) }}. {{ row.published ? 'Published' : 'Historical unpublished work' }}.</p><p>Maximum marks {{ row.submissionId ? 'at submission' : '(current definition)' }}: {{ row.maximumMarks }}.</p>
+          @if (row.status === 2) { @if (row.marks !== null) { <p>Grade: {{ row.marks }} / {{ row.maximumMarks }}.</p><p class="text">{{ row.feedback || 'No feedback provided.' }}</p> } @else { <p>Grade unavailable.</p> } }
+          @if (row.submittedAt) { <p>Submitted (UTC): {{ row.submittedAt | date:'medium':'UTC' }} UTC.</p> }
+          <a [routerLink]="assignmentLink(row)">{{ row.submissionId ? 'Review your submission and feedback' : 'Open assignment instructions' }}</a>
+        </li> } @empty { <li>No accessible assignments on this page.</li> }</ul>
+        <nav aria-label="Assignment grade pages" class="mt-4 flex gap-5">@if (page.page > 1) { <a [routerLink]="[]" [queryParams]="pageQuery('assignmentPage', page.page - 1)">Previous assignment page</a> } @if (hasNext(page)) { <a [routerLink]="[]" [queryParams]="pageQuery('assignmentPage', page.page + 1)">Next assignment page</a> }</nav>
+      }
+    }
+    <p class="mt-6 text-sm">Reads do not expire attempts, change LastAccessedAt, or mark completion. Counts and offset pages can shift during concurrent changes.</p>
+  }
+</section>

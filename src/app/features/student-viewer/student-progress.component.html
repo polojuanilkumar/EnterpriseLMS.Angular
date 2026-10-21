@@ -1,0 +1,68 @@
+<section aria-label="Stored progress" class="mt-6 rounded-xl border bg-white p-4 md:p-6">
+  <h2 class="text-xl font-bold">{{ selection().lessonId ? 'Stored lesson progress' : 'Course progress' }}</h2>
+  @if (store.loading()) { <p role="status" class="mt-4">Loading stored progress...</p> }
+  @if (store.loadError()) {
+    <p role="alert" class="mt-4 text-red-800">{{ store.loadError() }}</p>
+    <button type="button" (click)="store.refresh()" [disabled]="store.pending() || store.loading()" class="mt-3 rounded border px-4 py-2">Reload progress</button>
+  }
+  @if (store.actionError()) { <p role="alert" class="mt-4 text-red-800">{{ store.actionError() }}</p> }
+  @if (store.notice()) { <p role="status" class="mt-4">{{ store.notice() }}</p> }
+  @if (store.pending()) { <p role="status" class="mt-4">Saving and checking stored state...</p> }
+  @if (store.data(); as data) {
+    @if (selection().lessonId) {
+      @if (data.lesson; as lesson) {
+        <p class="mt-4">Lesson state: {{ lesson.isCompleted ? 'Completed' : 'In progress' }}. Stored progress: {{ lesson.progressPercentage }}%.</p>
+        <dl class="mt-3 grid gap-3 sm:grid-cols-2">
+          <div><dt>Started at</dt><dd>{{ lesson.startedAt | date:'medium' }}</dd></div>
+          <div><dt>Last accessed at</dt><dd>{{ lesson.lastAccessedAt | date:'medium' }}</dd></div>
+          <div><dt>Lesson completed at</dt><dd>{{ lesson.completedAt ? (lesson.completedAt | date:'medium') : 'Not recorded' }}</dd></div>
+        </dl>
+      } @else { <p class="mt-4">Lesson state: Not started. This lesson has not been started. No stored progress record is available.</p> }
+      <p class="mt-3 text-sm">Opening this page, playing media and viewing PDFs do not record progress or change LastAccessedAt.</p>
+      @if (store.active()) {
+        <fieldset class="mt-4" [disabled]="store.pending() || store.loading()">
+          <legend class="font-semibold">Explicit lesson actions</legend>
+          @if (!data.lesson) { <button type="button" (click)="store.changeLesson('start')" class="mt-3 rounded bg-blue-700 px-4 py-2 text-white">Start lesson</button> }
+          @else if (!data.lesson.isCompleted) {
+            @if (store.confirmingLesson()) {
+              <fieldset class="mt-3 rounded border p-4">
+                <legend class="font-bold">Confirm lesson completion</legend>
+                <p>Mark this lesson complete? This records lesson completion and its timestamps. Enrollment completion remains a separate action.</p>
+                <button type="button" (click)="store.changeLesson('complete')" class="mt-3 rounded bg-blue-700 px-4 py-2 text-white">Confirm lesson completion</button>
+                <button type="button" (click)="store.confirmingLesson.set(false)" class="ml-3 mt-3 rounded border px-4 py-2">Cancel</button>
+              </fieldset>
+            } @else {
+              <button type="button" (click)="store.askLessonCompletion()" class="mt-3 rounded border border-blue-700 px-4 py-2 text-blue-700">Mark lesson complete</button>
+            }
+          }
+        </fieldset>
+      }
+    }
+    <h3 class="mt-6 font-bold">Current published-content progress</h3>
+    <p class="mt-2">{{ data.current.completedLessons }} / {{ data.current.totalLessons }} published lessons completed ({{ data.current.progressPercentage }}%).</p>
+    <p>Current completion state: {{ data.current.isCompleted ? 'Complete' : 'Incomplete' }}.</p>
+    <h3 class="mt-5 font-bold">Historical enrollment</h3>
+    <p class="mt-2">Status: {{ data.enrollment.status }}.</p>
+    <p>Enrollment completed at: {{ data.enrollment.completedAt ? (data.enrollment.completedAt | date:'medium') : 'Not recorded' }}.</p>
+    @if (!store.active()) {
+      <p class="mt-3">Historical completion is retained even if the currently published lessons change. Completed enrollment permits reads; learner mutations are disabled.</p>
+    } @else if (data.current.totalLessons === 0) {
+      <p class="mt-3">Course completion requires at least one published lesson. Current progress is 0%.</p>
+    } @else if (!store.canComplete()) {
+      <p class="mt-3">Complete every currently published lesson before completing the course enrollment.</p>
+    } @else { <p class="mt-3">Eligible to request course completion. The server rechecks all prerequisites when you confirm.</p> }
+    @if (!selection().lessonId && store.active()) {
+      @if (store.confirming()) {
+        <fieldset class="mt-4 rounded border p-4" [disabled]="store.pending() || store.loading()">
+          <legend class="font-bold">Confirm course completion</legend>
+          <p>Complete this Active enrollment? This records its historical completion.</p>
+          <button type="button" (click)="store.completeEnrollment()" class="mt-3 rounded bg-blue-700 px-4 py-2 text-white">Confirm completion</button>
+          <button type="button" (click)="store.confirming.set(false)" class="ml-3 mt-3 rounded border px-4 py-2">Go back</button>
+        </fieldset>
+      } @else {
+        <button type="button" (click)="store.askCompletion()" [disabled]="!store.canComplete() || store.pending() || store.loading()" class="mt-4 rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50">Complete course enrollment</button>
+      }
+    }
+    <p class="mt-4 text-sm">Quiz passing and required content items are not course completion prerequisites.</p>
+  }
+</section>

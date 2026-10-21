@@ -1,0 +1,117 @@
+<div class="space-y-5">
+  <nav aria-label="Breadcrumb" class="flex flex-wrap gap-2 text-blue-700">
+    <a [routerLink]="root">Course authoring</a>
+    @if (courseId) { <span aria-hidden="true">/</span><a [routerLink]="coursePath">Course</a> }
+    @if (sectionId) { <span aria-hidden="true">/</span><a [routerLink]="sectionPath">Section</a> }
+    @if (lessonId) { <span aria-hidden="true">/</span><a [routerLink]="lessonPath">Lesson</a> }
+  </nav>
+  <h1 class="text-2xl font-bold">{{ isForm ? 'Edit ' + (mode === 'itemForm' ? 'content item' : mode.replace('Form', '')) : mode === 'list' ? 'Course authoring' : mode === 'readiness' ? 'Publish-readiness inventory' : page()?.lesson?.title || page()?.section?.title || page()?.course?.title }}</h1>
+  @if (loading()) { <p role="status">Loading stored authoring state…</p> }
+  @if (pending()) { <p role="status">Saving. Please wait…</p> }
+  @if (error()) { <p role="alert" class="rounded border border-red-300 bg-red-50 p-4 text-red-800">{{ error() }}</p> }
+  @if (notice()) { <p role="status" class="rounded border bg-blue-50 p-4">{{ notice() }}</p> }
+  <button type="button" class="rounded border bg-white px-3 py-2 disabled:opacity-50" [disabled]="pending() || loading()" (click)="load(isForm)">Refresh stored state</button>
+  @if (locked()) { <p>Writes are disabled. Review the stored state, then leave and reopen this page before making another explicit change.</p> }
+  @if (recovered().length) { <section aria-label="Stored records after uncertain creation" class="rounded border bg-white p-4"><h2 class="font-semibold">Stored records after uncertain creation</h2><ul>@for (record of recovered(); track record.id) { <li><a class="text-blue-700 underline" [routerLink]="record.path">{{ record.title }}</a></li> }</ul></section> }
+  @if (page(); as p) {
+    @if (mode === 'list') {
+      <a class="block text-blue-700 underline" [routerLink]="root + '/new'">Create course</a>
+      <p>Instructors see assigned courses. Administrators see courses in the selected organization.</p>
+      <ul class="space-y-3">@for (course of p.courses; track course.id) {
+        <li class="rounded border bg-white p-4"><a class="font-semibold text-blue-700 underline" [routerLink]="root + '/' + course.id">{{ course.title }}</a><p>{{ course.status }}</p><p class="whitespace-pre-wrap">{{ course.description }}</p></li>
+      } @empty { <li>No courses are available in this organization.</li> }</ul>
+    }
+    @if (mode === 'course') {
+      <p class="whitespace-pre-wrap">{{ p.course?.description }}</p><p>Course status: {{ p.course?.status }}</p>
+      <div class="flex flex-wrap gap-4"><a class="text-blue-700 underline" [routerLink]="coursePath + '/edit'">Edit course</a><a class="text-blue-700 underline" [routerLink]="coursePath + '/sections/new'">Create section</a><a class="text-blue-700 underline" [routerLink]="coursePath + '/readiness'">Publish-readiness inventory</a></div>
+      <div class="flex gap-3"><button type="button" [disabled]="pending() || loading() || locked()" class="rounded border bg-white p-2 disabled:opacity-50" (click)="publication('publish')">Publish course…</button><button type="button" [disabled]="pending() || loading() || locked()" class="rounded border bg-white p-2 disabled:opacity-50" (click)="publication('archive')">Archive course…</button></div>
+      @if (isAdmin) { <a class="block text-blue-700 underline" [routerLink]="'/workspace/organization/courses/' + courseId + '/instructor'">Reassign Instructor</a> }<a class="block text-blue-700 underline" [routerLink]="'/workspace/staff/reports/courses/' + courseId + '/learners'">Learner report</a><h2 class="text-xl font-semibold">Sections</h2>
+      <ol class="space-y-3">@for (section of p.sections; track section.id) { <li class="rounded border bg-white p-4"><a class="text-blue-700 underline" [routerLink]="coursePath + '/sections/' + section.id">{{ section.displayOrder }}. {{ section.title }}</a></li> } @empty { <li>No sections yet.</li> }</ol>
+    }
+    @if (mode === 'section') {
+      <div class="flex flex-wrap gap-4"><a class="text-blue-700 underline" [routerLink]="sectionPath + '/edit'">Edit section</a><a class="text-blue-700 underline" [routerLink]="sectionPath + '/lessons/new'">Create lesson</a></div>
+      <h2 class="text-xl font-semibold">Lessons</h2><ol class="space-y-3">@for (lesson of p.lessons; track lesson.id) { <li class="rounded border bg-white p-4"><a class="text-blue-700 underline" [routerLink]="sectionPath + '/lessons/' + lesson.id">{{ lesson.displayOrder }}. {{ lesson.title }}</a><p>{{ lesson.isPublished ? 'Published' : 'Unpublished' }}</p></li> } @empty { <li>No lessons yet.</li> }</ol>
+    }
+    @if (mode === 'lesson' || mode === 'itemForm') {
+      @if (mode === 'lesson') {
+        <p class="whitespace-pre-wrap">{{ p.lesson?.description }}</p><p>{{ p.lesson?.isPublished ? 'Published' : 'Unpublished' }}</p>
+        <div class="flex flex-wrap gap-4"><a class="text-blue-700 underline" [routerLink]="lessonPath + '/edit'">Edit lesson and legacy fields</a><a class="text-blue-700 underline" [routerLink]="lessonPath + '/items/new'">Create content item</a></div>
+        <div class="flex gap-3"><button type="button" [disabled]="pending() || loading() || locked()" class="rounded border bg-white p-2 disabled:opacity-50" (click)="publication('publish')">Publish lesson…</button><button type="button" [disabled]="pending() || loading() || locked()" class="rounded border bg-white p-2 disabled:opacity-50" (click)="publication('unpublish')">Unpublish lesson…</button></div>
+        <div class="flex flex-wrap gap-4"><a class="text-blue-700 underline" [routerLink]="lessonPath + '/quiz'">Manage quiz</a><a class="text-blue-700 underline" [routerLink]="lessonPath + '/assignments'">Manage assignments and grading</a></div><h2 class="text-xl font-semibold">Ordered content</h2>
+        <ol class="space-y-5">@for (item of p.content?.items; track item.id; let i = $index) {
+          <li class="min-w-0 rounded border bg-white p-4"><h3 class="text-lg font-semibold">{{ item.displayOrder }}. {{ item.title }}</h3><p>{{ item.isRequired ? 'Required' : 'Optional' }} · {{ item.type === 1 ? 'Text' : item.type === 2 ? 'YouTube' : item.type === 3 ? 'MP3' : item.type === 4 ? 'MP4' : 'PDF' }}</p>
+            @switch (item.type) {
+              @case (1) { <p class="whitespace-pre-wrap break-words">{{ item.text }}</p> }
+              @case (2) { @if (youtube(item.youTubeVideoId); as embed) { <iframe [src]="embed" [title]="item.title" class="aspect-video w-full" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer" allow="fullscreen" allowfullscreen></iframe> } @else { <p>No safe YouTube preview is available.</p> } }
+              @case (3) { <audio controls preload="metadata" [src]="mediaUrl(item)" [attr.aria-label]="item.title" class="w-full" (error)="mediaError(item)">Audio playback is unavailable.</audio> }
+              @case (4) { <video controls preload="metadata" [src]="mediaUrl(item)" [attr.aria-label]="item.title" class="w-full" (error)="mediaError(item)">Video playback is unavailable.</video><p>Captions depend on the supplied media; no caption track is provided by this contract.</p> }
+              @case (5) { <iframe [src]="pdf(item)" [title]="item.title + ' PDF preview'" sandbox="" class="h-96 w-full" referrerpolicy="no-referrer" (error)="mediaError(item)"></iframe><p>PDF preview depends on browser support. Use the download if it is blank.</p> }
+            }
+            @if (mediaUrl(item); as url) { <a class="block text-blue-700 underline" [href]="url + '?download=true'">Download {{ item.title }}</a> }
+            <div class="mt-3 flex flex-wrap gap-3"><a class="text-blue-700 underline" [routerLink]="lessonPath + '/items/' + item.id + '/edit'">Edit content</a><button type="button" class="rounded border p-2 disabled:opacity-50" [disabled]="pending() || loading() || locked()" (click)="remove(item)">Delete…</button><button type="button" class="rounded border p-2 disabled:opacity-50" [disabled]="i === 0 || pending() || loading() || locked()" [attr.aria-label]="'Move ' + item.title + ' up'" (click)="move(i, -1)">Move up</button><button type="button" class="rounded border p-2 disabled:opacity-50" [disabled]="i === (p.content?.items?.length ?? 0) - 1 || pending() || loading() || locked()" [attr.aria-label]="'Move ' + item.title + ' down'" (click)="move(i, 1)">Move down</button></div>
+          </li>
+        } @empty { <li>No content items. Legacy content remains available below when present.</li> }</ol>
+        @if (p.content?.legacy; as legacy) { <h2 class="text-xl font-semibold">Legacy lesson content</h2><p class="whitespace-pre-wrap break-words">{{ legacy.content }}</p>@if (youtube(legacy.youTubeVideoId ?? null); as embed) { <iframe [src]="embed" title="Legacy YouTube video" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer" allow="fullscreen" allowfullscreen class="aspect-video w-full"></iframe> }<p class="break-words">Legacy video URL: {{ legacy.videoUrl || 'None' }}</p><p>Edit legacy values in the lesson form. Arbitrary legacy URLs are never embedded.</p> }
+      }
+    }
+    @if (isForm) {
+      @if (locked()) {
+        <section aria-label="Stored state after recovery" class="rounded border bg-white p-4"><h2 class="font-semibold">Stored state after recovery</h2>
+          @if (p.form; as stored) { <p>Title: {{ stored.title }}</p><p>Code: {{ stored.code }}</p><p class="whitespace-pre-wrap">Description: {{ stored.description }}</p><p>Order: {{ stored.displayOrder }} · Duration: {{ stored.durationInMinutes }}</p><p>Category: {{ stored.categoryId }} · Instructor: {{ stored.instructorId }} · Level: {{ stored.level }}</p><p>Thumbnail URL: {{ stored.thumbnailUrl }}</p><p>Legacy type: {{ stored.lessonType }}</p><p class="whitespace-pre-wrap">Legacy text: {{ stored.content }}</p><p>Legacy video URL: {{ stored.videoUrl }}</p> }
+          @for (item of p.content?.items; track item.id) { <p>{{ item.displayOrder }}. {{ item.title }} · Type {{ item.type }} · {{ item.isRequired ? 'Required' : 'Optional' }}</p><p class="whitespace-pre-wrap">{{ item.text }}</p><p>YouTube ID: {{ item.youTubeVideoId }} · Stored attachment: {{ item.assetId }}</p> }
+        </section>
+      }
+      @if (mode === 'courseForm' && p.isAdmin && !courseId) {
+        <div class="rounded border bg-white p-4"><h2 class="font-semibold">Find organization Instructors</h2><label class="block">Search name or email<input class="block w-full rounded border p-2" [(ngModel)]="search" [disabled]="pending() || loading()" maxlength="100"></label><button type="button" class="rounded border p-2" [disabled]="pending() || loading()" (click)="choices(0)">Search</button><p>Page {{ p.choices?.page }} · {{ p.choices?.total }} members</p><button type="button" class="rounded border p-2" [disabled]="choicePage <= 1 || pending() || loading()" (click)="choices(-1)">Previous</button><button type="button" class="rounded border p-2" [disabled]="choicePage * 50 >= (p.choices?.total ?? 0) || pending() || loading()" (click)="choices(1)">Next</button></div>
+      }
+      <form #editor="ngForm" (ngSubmit)="save(editor)" (input)="changed()" (change)="changed()" class="space-y-4 rounded border bg-white p-4 sm:p-6">
+        <fieldset [disabled]="pending() || loading() || locked()" class="space-y-4 disabled:opacity-60"><legend class="font-semibold">{{ mode === 'itemForm' ? 'Content' : 'Details' }}</legend>
+          <p>Required fields are labelled. The server validates every change. Validation errors retain safe entered values.</p>
+          <label class="block">Title (required, at most 200 characters)<input name="title" [(ngModel)]="form.title" required maxlength="200" class="block w-full rounded border p-2"></label>
+          @if (mode === 'courseForm') {
+            <label class="block">Code (required, at most 50 characters)<input name="code" [(ngModel)]="form.code" required maxlength="50" class="block w-full rounded border p-2"></label>
+            <label class="block">Description (required, at most 5000 characters)<textarea name="description" [(ngModel)]="form.description" required maxlength="5000" rows="5" class="block w-full rounded border p-2"></textarea></label>
+            <label class="block">Category<select name="categoryId" [(ngModel)]="form.categoryId" class="block w-full rounded border p-2"><option [ngValue]="null">No category</option>@for (category of p.categories; track category.id) { <option [ngValue]="category.id">{{ category.name }}{{ category.isActive ? '' : ' (inactive)' }}</option> }</select></label>
+            @if (p.isAdmin && !courseId) { <label class="block">Assigned Instructor (required)<select name="instructorId" [(ngModel)]="form.instructorId" required class="block w-full rounded border p-2"><option [ngValue]="null">Choose Instructor</option>@if (form.instructorId) { <option [ngValue]="form.instructorId">Selected: {{ form.instructorId }}</option> }@for (instructor of p.instructors; track instructor.userId) { <option [ngValue]="instructor.userId">{{ instructor.firstName }} {{ instructor.lastName }} ({{ instructor.email }})</option> }</select></label> } @else { <p>Instructor assignment is preserved on edit. Instructor-created courses are assigned to the signed-in Instructor.</p> }
+            <label class="block">Level<select name="level" [(ngModel)]="form.level" required class="block w-full rounded border p-2"><option [ngValue]="1">Beginner</option><option [ngValue]="2">Intermediate</option><option [ngValue]="3">Advanced</option></select></label>
+            <label class="block">Thumbnail URL (at most 500 characters)<input name="thumbnailUrl" [(ngModel)]="form.thumbnailUrl" maxlength="500" class="block w-full rounded border p-2"></label>
+          }
+          @if (mode === 'sectionForm' || mode === 'lessonForm') { <label class="block">Description<textarea name="description" [(ngModel)]="form.description" rows="4" class="block w-full rounded border p-2"></textarea></label> }
+          @if (mode !== 'courseForm') { <label class="block">Display order (required)<input type="number" name="displayOrder" [(ngModel)]="form.displayOrder" required [min]="mode === 'itemForm' ? 0 : 1" max="2147483647" step="1" class="block w-full rounded border p-2"></label> }
+          @if (mode === 'courseForm' || mode === 'lessonForm') { <label class="block">Duration in minutes (required)<input type="number" name="durationInMinutes" [(ngModel)]="form.durationInMinutes" required min="0" max="2147483647" step="1" class="block w-full rounded border p-2"></label> }
+          @if (mode === 'lessonForm') {
+            <p>Legacy fields are preserved independently of content items.</p><label class="block">Legacy lesson type<select name="lessonType" [(ngModel)]="form.lessonType" class="block w-full rounded border p-2"><option [ngValue]="1">Text</option><option [ngValue]="2">Video</option></select></label>
+            <label class="block">Legacy plain text<textarea name="content" [(ngModel)]="form.content" rows="6" class="block w-full rounded border p-2"></textarea></label><label class="block">Legacy video URL<input name="videoUrl" [(ngModel)]="form.videoUrl" class="block w-full rounded border p-2"></label>
+          }
+          @if (mode === 'itemForm') {
+            <label class="block">Content type<select name="type" [(ngModel)]="form.type" (ngModelChange)="typeChanged()" class="block w-full rounded border p-2"><option [ngValue]="1">Text</option><option [ngValue]="2">YouTube</option><option [ngValue]="3">MP3</option><option [ngValue]="4">MP4</option><option [ngValue]="5">PDF</option></select></label>
+            <label class="block"><input type="checkbox" name="isRequired" [(ngModel)]="form.isRequired"> Required content (existing metadata; does not add completion tracking)</label>
+            @if (form.type === 1) { <label class="block">Plain text (required)<textarea name="text" [(ngModel)]="form.text" required rows="8" class="block w-full rounded border p-2"></textarea></label> }
+            @if (form.type === 2) { <label class="block">YouTube URL (required)<input name="youTubeUrl" [(ngModel)]="form.youTubeUrl" required class="block w-full rounded border p-2"></label><p>The API validates and normalizes YouTube video IDs. Arbitrary video URLs are never embedded.</p> }
+            @if ((form.type ?? 1) >= 3) {
+              <p>MP3 and PDF: 25 MiB maximum. MP4: 200 MiB maximum. Upload and attachment are separate operations. Committed uploads remain subject to existing retention rules.</p>
+              <label class="block">Choose file<input type="file" [accept]="form.type === 3 ? '.mp3,audio/mpeg' : form.type === 4 ? '.mp4,video/mp4' : '.pdf,application/pdf'" (change)="chooseFile($event)" class="block w-full rounded border p-2"></label>
+              <button type="button" class="rounded border px-3 py-2 disabled:opacity-50" [disabled]="!file" (click)="upload()">Upload selected file</button>
+              <p>{{ form.assetId ? 'Stored attachment selected. Saving attaches it to this item.' : 'No stored attachment selected. Upload a file before saving.' }}</p>
+            }
+          }
+          @for (hint of validationHints; track hint.key) { @if (editor.controls[hint.key]?.invalid && (editor.controls[hint.key]?.touched || editor.submitted)) { <p role="alert" class="text-red-700">{{ hint.message }}</p> } }
+          <div class="flex gap-4"><button type="submit" [disabled]="!!file || (mode === 'itemForm' && (form.type ?? 1) >= 3 && !form.assetId)" class="rounded bg-blue-700 px-4 py-2 font-semibold text-white disabled:opacity-50">Save {{ mode === 'itemForm' ? 'content item' : 'details' }}</button><a [routerLink]="parentPath" class="p-2 text-blue-700 underline">Cancel</a></div>
+        </fieldset>
+      </form>
+    }
+  }
+  @if (readiness(); as inventory) {
+    <h2 class="text-xl font-semibold">{{ inventory.course.title }} · {{ inventory.course.status }}</h2>
+    <p>This inventory adds no publication blockers. Existing course and lesson publication actions have no content prerequisites. Quiz publication has separate rules. This page does not audit quiz configuration or guarantee an atomic snapshot.</p>
+    <ol class="space-y-4">@for (section of inventory.sections; track section.section.id) {
+      <li class="rounded border bg-white p-4"><h3 class="text-lg font-semibold">{{ section.section.displayOrder }}. {{ section.section.title }}</h3><ol class="space-y-3">@for (entry of section.lessons; track entry.unit.lesson.id) {
+        <li><a class="text-blue-700 underline" [routerLink]="coursePath + '/sections/' + section.section.id + '/lessons/' + entry.unit.lesson.id">{{ entry.unit.lesson.displayOrder }}. {{ entry.unit.lesson.title }}</a><p>Lesson: {{ entry.unit.lesson.isPublished ? 'Published' : 'Unpublished' }} · {{ entry.unit.content.items.length }} content items</p>
+          <ol>@for (item of entry.unit.content.items; track item.id) { <li>{{ item.displayOrder }}. {{ item.title }} · Type {{ item.type }}</li> }</ol>
+          @if (!entry.unit.content.items.length) { <p>{{ entry.unit.content.legacy?.content || entry.unit.content.legacy?.videoUrl ? 'Legacy content exists.' : 'No content items or legacy content.' }}</p> }
+          <p>Quiz: {{ entry.quiz ? (entry.quiz.isPublished ? 'Published' : 'Unpublished') : 'None' }}</p>
+        </li>
+      } @empty { <li>No lessons.</li> }</ol></li>
+    } @empty { <li>No sections.</li> }</ol>
+  }
+</div>

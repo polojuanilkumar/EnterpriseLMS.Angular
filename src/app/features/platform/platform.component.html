@@ -1,0 +1,42 @@
+<section class="space-y-5">
+  <nav aria-label="Platform"><a routerLink="/workspace/platform/organizations" class="text-blue-700 underline">Organizations</a> | <a routerLink="/workspace/platform/audit" class="text-blue-700 underline">Platform/account audit</a></nav>
+  <h1 class="text-2xl font-bold">{{ mode === 'organizations' ? 'Platform organizations' : 'Platform/account audit' }}</h1>
+  <p>Stored SuperAdmin authorization is checked for every request. Platform screens do not require a selected organization.</p>
+  @if (mode === 'audit') { <p>Organization actions, including organization creation, belong to organization history. This separate history currently records account password resets; no additional analytics are inferred.</p> }
+  @if (error()) { <p role="alert" class="rounded bg-red-50 p-4 text-red-800">{{ error() }}</p> }
+  @if (notice()) { <p role="status" class="rounded bg-blue-50 p-4">{{ notice() }}</p> }
+  @if (!eventId) {
+    <form #filters="ngForm" (ngSubmit)="filter(filters)" class="flex flex-wrap items-end gap-4 rounded border bg-white p-4">
+      @if (mode === 'organizations') { <label>Search name/code<input name="search" maxlength="100" [(ngModel)]="search" class="block rounded border p-2"></label> }
+      @else {
+        <label>From UTC (inclusive)<input name="from" type="datetime-local" step="0.001" [(ngModel)]="fromUtc" class="block rounded border p-2"></label>
+        <label>To UTC (exclusive)<input name="to" type="datetime-local" step="0.001" [(ngModel)]="toUtc" class="block rounded border p-2"></label>
+        <label>Action<select name="action" [(ngModel)]="action" class="block rounded border p-2"><option value="">All permitted actions</option><option value="account.password-reset">account.password-reset</option></select></label>
+        <label>Outcome<select name="outcome" [(ngModel)]="outcome" class="block rounded border p-2"><option value="">All outcomes</option><option value="succeeded">Succeeded</option><option value="failed">Failed</option><option value="unknown">Unknown</option></select></label>
+        <label>Actor ID<input name="actor" [(ngModel)]="actorId" pattern="[a-fA-F0-9-]{36}" class="block rounded border p-2"></label>
+        <label>Resource ID<input name="resource" [(ngModel)]="resourceId" pattern="[a-fA-F0-9-]{36}" class="block rounded border p-2"></label>
+      }
+      <label>Page size<input name="size" type="number" min="1" max="50" required [(ngModel)]="pageSize" class="block w-24 rounded border p-2"></label>
+      <button type="submit" [disabled]="filters.invalid || loading() || pending()" class="rounded border px-4 py-2 disabled:opacity-50">Apply filters</button>
+    </form>
+  }
+  @if (loading()) { <p role="status">Loading platform state...</p> }
+  @if (organizations(); as p) {
+    <ul class="space-y-3">@for (o of p.items; track o.id) { <li class="flex flex-wrap items-center justify-between gap-4 rounded border bg-white p-4"><div><h2 class="font-semibold">{{ o.name }}</h2><p>{{ o.code }} - {{ o.isActive ? 'Active' : 'Inactive' }}</p></div><button type="button" [disabled]="!o.isActive || pending()" (click)="select(o.id)" class="rounded border px-4 py-2 disabled:opacity-50">Select organization and enter administration</button></li> } @empty { <li>No organizations match these filters.</li> }</ul>
+  }
+  @if (audit(); as p) {
+    <ul class="space-y-3">@for (row of p.items; track row.id) { <li class="rounded border bg-white p-4"><a [routerLink]="['/workspace/platform/audit', row.id]" class="font-semibold text-blue-700 underline">{{ row.action }}</a><p>{{ row.timestampUtc }} (UTC) - {{ row.outcome }}</p><p>Actor: {{ row.actorUserId || 'Unavailable' }} | Resource: {{ row.resourceId }}</p></li> } @empty { <li>No account/platform events in this UTC window.</li> }</ul>
+  }
+  @if (event(); as row) { <article class="space-y-2 rounded border bg-white p-5"><h2 class="font-semibold">{{ row.action }}</h2><p>Scope: {{ row.scope }}</p><p>{{ row.timestampUtc }} (UTC)</p><p>Outcome: {{ row.outcome }}</p><p>Actor: {{ row.actorUserId || 'Unavailable' }}</p><p>Resource: {{ row.resourceType }} / {{ row.resourceId }}</p><p>Correlation: {{ row.correlationId }}</p><p>This event has no permitted metadata fields.</p></article> }
+  @if (pagination; as p) { <nav aria-label="Pagination" class="flex flex-wrap items-center gap-4"><button type="button" (click)="move(-1)" [disabled]="loading() || pending() || p.page <= 1" class="rounded border px-4 py-2 disabled:opacity-50">Previous</button><p>Page {{ p.page }} - {{ p.total }} records</p><button type="button" (click)="move(1)" [disabled]="loading() || pending() || p.page * p.pageSize >= p.total" class="rounded border px-4 py-2 disabled:opacity-50">Next</button></nav> }
+  @if (mode === 'organizations') {
+    <form #creation="ngForm" (ngSubmit)="create(creation)" class="space-y-4 rounded border bg-white p-5">
+      <h2 class="text-xl font-semibold">Create organization</h2><p>Use an existing exact-email account for the initial Admin. Creation and assignment are atomic under existing server policies.</p>
+      <label class="block">Code<input name="code" required maxlength="50" [(ngModel)]="form.code" class="mt-1 block w-full rounded border p-3"></label>
+      <label class="block">Name<input name="name" required maxlength="200" [(ngModel)]="form.name" class="mt-1 block w-full rounded border p-3"></label>
+      <label class="block">Initial Admin exact email<input name="email" type="email" required email maxlength="256" [(ngModel)]="form.initialAdminEmail" class="mt-1 block w-full rounded border p-3"></label>
+      <button type="submit" [disabled]="creation.invalid || pending() || loading() || locked()" class="rounded bg-blue-700 px-4 py-3 text-white disabled:opacity-50">{{ pending() ? 'Submitting...' : 'Confirm organization creation' }}</button>
+      @if (locked()) { <p>Creation is locked after an uncertain outcome. Inspect stored organizations before deliberately reopening this page.</p> }
+    </form>
+  }
+</section>

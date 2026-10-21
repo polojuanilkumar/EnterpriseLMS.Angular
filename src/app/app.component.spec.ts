@@ -20,11 +20,11 @@ describe('AppComponent', () => {
     expect(app.title).toEqual('enterprise-lms-angular');
   });
 
-  it('should render title', () => {
+  it('should host routed content without the setup card', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Enterprise LMS');
-    expect(compiled.querySelector('p')?.textContent).toContain('Angular + Tailwind setup successful');
+    expect(compiled.querySelector('router-outlet')).not.toBeNull();
+    expect(compiled.textContent).not.toContain('Angular + Tailwind setup successful');
   });
 });

@@ -1,0 +1,7 @@
+{
+  "/bff/**": {
+    "target": "https://localhost:7207",
+    "secure": true,
+    "changeOrigin": false
+  }
+}

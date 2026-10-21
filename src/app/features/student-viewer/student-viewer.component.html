@@ -1,0 +1,68 @@
+<section class="student-viewer" aria-labelledby="viewer-title">
+  <nav aria-label="Breadcrumb" class="mb-6 flex flex-wrap gap-3 text-blue-700">
+    <a routerLink="/workspace/student/my-courses">My Courses</a>
+    @if (sectionId) { <span aria-hidden="true">/</span><a [routerLink]="coursePath">Course</a> }
+    @if (lessonId) { <span aria-hidden="true">/</span><a [routerLink]="sectionPath">Section</a> }
+  </nav>
+  @if (store.loading()) { <h1 id="viewer-title" class="text-2xl font-bold">Learning resource</h1><p role="status" class="mt-5">Loading…</p> }
+  @else if (store.error()) {
+    <h1 id="viewer-title" class="text-2xl font-bold">Learning resource unavailable</h1>
+    <p role="alert" class="mt-5 text-red-800">{{ store.error() }}</p>
+    <button type="button" (click)="store.reload()" class="mt-4 rounded bg-blue-700 px-4 py-2 text-white">Reload</button>
+  } @else if (store.page(); as page) {
+    <h1 id="viewer-title" class="text-3xl font-bold text">{{ page.lesson?.title || page.section?.title || page.course?.title }}</h1>
+    <p class="mt-4 text text-slate-600">{{ page.lesson?.description || (!sectionId ? page.course?.description : '') }}</p>
+    @if (!sectionId || lessonId) {
+      <app-student-progress [selection]="{ courseId: courseId, sectionId: sectionId, lessonId: lessonId }" (accessDenied)="store.denyAccess($event)" />
+    }
+    @if (!sectionId) {
+      <h2 class="mt-8 text-xl font-bold">Sections</h2>
+      <ol aria-label="Course sections" class="mt-4 grid gap-3 md:grid-cols-2">
+        @for (section of page.sections || []; track section.id) {
+          <li class="rounded-xl border bg-white p-5"><a [routerLink]="[...coursePath, 'sections', section.id]" class="text-blue-700 text">{{ section.title }}</a></li>
+        } @empty { <li role="status">No sections are available.</li> }
+      </ol>
+    } @else if (!lessonId) {
+      <h2 class="mt-8 text-xl font-bold">Published lessons</h2>
+      <ol aria-label="Section lessons" class="mt-4 grid gap-3 md:grid-cols-2">
+        @for (lesson of page.lessons || []; track lesson.id) {
+          <li class="rounded-xl border bg-white p-5"><a [routerLink]="[...sectionPath, 'lessons', lesson.id]" class="text-blue-700 text">{{ lesson.title }}</a><p class="mt-2 text">{{ lesson.description }}</p></li>
+        } @empty { <li role="status">No published lessons are available.</li> }
+      </ol>
+    } @else {
+      <p class="mt-6"><a [routerLink]="[...sectionPath, 'lessons', lessonId, 'quiz']" class="text-blue-700">Quiz instructions, attempts and results</a></p>
+      <p class="mt-4"><a [routerLink]="[...sectionPath, 'lessons', lessonId, 'assignments']" class="text-blue-700">Assignments, submissions and feedback</a></p>
+      @for (item of page.items || []; track item.id) {
+        <section class="mt-6 min-w-0 rounded-xl border bg-white p-4 md:p-6" [attr.aria-label]="item.title">
+          <h2 class="text-xl font-bold text">{{ item.title }}</h2>
+          @if (item.isRequired) { <p class="mt-2 text-sm">Required</p> }
+          @switch (item.type) {
+            @case (1) { <div class="mt-4 text">{{ item.text }}</div> }
+            @case (2) {
+              @if (youtube(item.youTubeVideoId); as url) { <iframe class="youtube" [src]="url" [title]="item.title" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer" loading="lazy" allow="fullscreen" allowfullscreen></iframe> }
+              @else { <p class="mt-4">This video reference is unavailable.</p> }
+            }
+            @case (3) { @if (store.mediaUrl(item.id); as url) { <audio controls preload="none" [src]="url" [attr.aria-label]="item.title" (error)="store.mediaFailed(item.id)">Your browser cannot play this audio.</audio> } }
+            @case (4) { @if (store.mediaUrl(item.id); as url) { <video controls playsinline preload="none" [src]="url" [attr.aria-label]="item.title" (error)="store.mediaFailed(item.id)">Your browser cannot play this video.</video> } }
+            @case (5) {
+              @if (pdf(item.id); as url) {
+                <iframe class="pdf" [src]="url" [title]="item.title" sandbox="" referrerpolicy="no-referrer" loading="lazy" (error)="store.mediaFailed(item.id)"></iframe>
+                <p class="mt-4"><a [href]="store.mediaUrl(item.id) + '?download=true'">Download PDF if the isolated viewer is unavailable</a></p>
+                <button type="button" class="mt-3 text-blue-700 underline" (click)="store.mediaFailed(item.id)">PDF unavailable? Check access</button>
+              }
+            }
+            @default { <p class="mt-4">This content type is unavailable.</p> }
+          }
+          @if (store.mediaErrors()[item.id]; as message) { <p role="alert" class="mt-4 text-red-800">{{ message }}</p> }
+        </section>
+      } @empty {
+        @if (page.legacy; as legacy) {
+          <div class="mt-6 text">{{ legacy.content }}</div>
+          @if (youtube(legacy.youTubeVideoId); as url) { <iframe class="youtube" [src]="url" title="Legacy lesson video" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer" loading="lazy" allow="fullscreen" allowfullscreen></iframe> }
+          @if (!legacy.content && !legacy.youTubeVideoId) { <p role="status" class="mt-6">No lesson content is available.</p> }
+        } @else { <p role="status" class="mt-6">No lesson content is available.</p> }
+      }
+      <p class="mt-6 text-sm text-slate-600">Viewing or playing content does not mark this lesson complete.</p>
+    }
+  }
+</section>

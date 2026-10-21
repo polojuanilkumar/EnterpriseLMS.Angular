@@ -1,0 +1,19 @@
+import { TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
+import { AuthState } from '../../core/auth/auth-state';
+import { selectedSession } from '../../core/auth/session.testing';
+import { selection } from '../student-viewer/student-viewer.testing';
+import { StudentGradesComponent } from './student-grades.component';
+import { gradeData } from './student-grades.testing';
+describe('My Grades rendering',()=>{
+  let query:BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  beforeEach(()=>{query=new BehaviorSubject(convertToParamMap({quizPage:'2',assignmentPage:'3',quizStatus:'2',assignmentStatus:'1',pageSize:'20'}));const params=new BehaviorSubject(convertToParamMap({courseId:selection.courseId}));TestBed.configureTestingModule({imports:[StudentGradesComponent],providers:[provideRouter([]),provideHttpClient(),provideHttpClientTesting(),{provide:ActivatedRoute,useValue:{paramMap:params,queryParamMap:query,snapshot:{paramMap:params.value,queryParamMap:query.value}}}]});TestBed.inject(AuthState).accept(selectedSession(),()=>{});});
+  afterEach(()=>{TestBed.inject(AuthState).clear();TestBed.inject(HttpTestingController).verify();});
+  function render(){const f=TestBed.createComponent(StudentGradesComponent);f.detectChanges();TestBed.inject(HttpTestingController).expectOne(r=>r.url.endsWith(selection.courseId)).flush(gradeData());flushMicrotasks();f.detectChanges();return f;}
+  it('separates historical completion/current progress and renders graded zero, ungraded, not submitted, expired and unavailable safely',fakeAsync(()=>{const f=render();const e:HTMLElement=f.nativeElement;for(const text of ['Current published-content progress: 1 / 2 (50%)','Stored enrollment percentage: 100%','Grade: 0 / 10','Stored score: 0 / 10','Submitted / ungraded','Not submitted','Expired','result unavailable','Feedback <img>'])expect(e.textContent).toContain(text);expect(e.querySelector('img,script')).toBeNull();expect(e.textContent).toContain('No official best/latest attempt or overall course grade');expect(e.querySelector('a[href$="/submissions/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"]')).not.toBeNull();expect(e.querySelector('a[href*="/quiz/attempts/"]')).not.toBeNull();}));
+  it('resets both pages when filters are applied and preserves independent pages on pagination links',fakeAsync(()=>{const f=render();const navigate=spyOn(TestBed.inject(Router),'navigate').and.resolveTo(true);f.componentInstance.filters={pageSize:'10',quizStatus:'3',assignmentStatus:'2'};f.componentInstance.apply();expect(navigate).toHaveBeenCalledWith([],{relativeTo:TestBed.inject(ActivatedRoute),queryParams:{pageSize:'10',quizStatus:'3',assignmentStatus:'2'}});const e:HTMLElement=f.nativeElement;expect(e.querySelector('nav[aria-label="Quiz grade pages"] a')?.getAttribute('href')).toContain('assignmentPage=3');expect(e.querySelector('nav[aria-label="Assignment grade pages"] a')?.getAttribute('href')).toContain('quizPage=2');}));
+  it('clears feedback on logout and rejects pending reads after expiry/context loss',fakeAsync(()=>{const f=render();expect(f.nativeElement.textContent).toContain('Feedback');query.next(convertToParamMap({pageSize:'10'}));f.detectChanges();const old=TestBed.inject(HttpTestingController).expectOne(r=>r.url.endsWith(selection.courseId));TestBed.inject(AuthState).clear();f.detectChanges();old.flush(gradeData());flushMicrotasks();f.detectChanges();expect(f.nativeElement.textContent).not.toContain('Feedback');expect(f.componentInstance.store.data()).toBeNull();}));
+});

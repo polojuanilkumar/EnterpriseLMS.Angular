@@ -1,12 +1,15 @@
+
 name: Angular CI CD Pipeline
 
 on:
   push:
     branches:
-      - 'main'
+      - main
+
   pull_request:
     branches:
-      - 'main'
+      - main
+
   workflow_dispatch:
 
 permissions:
@@ -22,36 +25,108 @@ env:
 
 jobs:
 
-  # ========================================
-  # CONTINUOUS INTEGRATION
-  # ========================================
+  # ==========================================
+  # JOB 1: CONTINUOUS INTEGRATION
+  # ==========================================
 
   build:
-    name: CI - Build Angular
+    name: CI - Build Angular Application
+
     runs-on: ubuntu-latest
+
     timeout-minutes: 15
 
     steps:
+
+      # Checkout source code
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Configure Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          cache: 'npm'
 
+      # Verify Node.js and npm versions
+      - name: Verify Node and npm Versions
+        run: |
+          node --version
+          npm --version
+
+      # Install dependencies
       - name: Install Dependencies
         run: npm ci
 
+      # Generate production build
       - name: Build Angular Application
         run: npm run build -- --configuration production
 
+      # ======================================
+      # DEBUG: INSPECT BUILD OUTPUT
+      # ======================================
+
+      - name: Inspect Angular Build Output
+        run: |
+          echo "======================================"
+          echo "Current working directory"
+          echo "======================================"
+          pwd
+
+          echo "======================================"
+          echo "Configured build output"
+          echo "======================================"
+          echo "$BUILD_OUTPUT"
+
+          echo "======================================"
+          echo "Dist directory contents"
+          echo "======================================"
+          ls -la dist
+
+          echo "======================================"
+          echo "Actual index.html locations"
+          echo "======================================"
+          find dist -type f -name "index.html"
+
+          echo "======================================"
+          echo "Static Web App configuration locations"
+          echo "======================================"
+          find dist -type f -name "staticwebapp.config.json"
+
+          echo "======================================"
+          echo "Complete build directory structure"
+          echo "======================================"
+          find dist -maxdepth 3 -type d
+
+      # ======================================
+      # VALIDATE BUILD OUTPUT
+      # ======================================
+
       - name: Verify Build Output
         run: |
-          test -f "$BUILD_OUTPUT/index.html"
-          test -f "$BUILD_OUTPUT/staticwebapp.config.json"
+          echo "Validating Angular build output..."
 
+          if [ ! -d "$BUILD_OUTPUT" ]; then
+            echo "::error::Build directory not found: $BUILD_OUTPUT"
+            exit 1
+          fi
+
+          if [ ! -f "$BUILD_OUTPUT/index.html" ]; then
+            echo "::error::index.html not found in $BUILD_OUTPUT"
+            exit 1
+          fi
+
+          if [ ! -f "$BUILD_OUTPUT/staticwebapp.config.json" ]; then
+            echo "::error::staticwebapp.config.json not found in $BUILD_OUTPUT"
+            exit 1
+          fi
+
+          echo "Build output validation successful."
+
+          ls -la "$BUILD_OUTPUT"
+
+      # Upload production build artifact
       - name: Upload Angular Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -60,17 +135,20 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # ========================================
-  # CONTINUOUS DEPLOYMENT
-  # ========================================
+
+  # ==========================================
+  # JOB 2: CONTINUOUS DEPLOYMENT
+  # ==========================================
 
   deploy:
-    name: CD - Deploy to Azure
+    name: CD - Deploy Angular to Azure
+
     needs: build
 
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
 
     runs-on: ubuntu-latest
+
     timeout-minutes: 15
 
     environment:
@@ -78,18 +156,34 @@ jobs:
       url: ${{ steps.deploy.outputs.static_web_app_url }}
 
     steps:
+
+      # Download validated build artifact
       - name: Download Angular Artifact
         uses: actions/download-artifact@v4
         with:
           name: angular-build-${{ github.sha }}
           path: deployment
 
+      # Verify downloaded deployment files
       - name: Verify Deployment Files
         run: |
-          ls -la deployment
-          test -f deployment/index.html
-          test -f deployment/staticwebapp.config.json
+          echo "Validating deployment artifact..."
 
+          ls -la deployment
+
+          if [ ! -f "deployment/index.html" ]; then
+            echo "::error::index.html missing from deployment artifact"
+            exit 1
+          fi
+
+          if [ ! -f "deployment/staticwebapp.config.json" ]; then
+            echo "::error::Static Web App configuration missing"
+            exit 1
+          fi
+
+          echo "Deployment artifact validation successful."
+
+      # Deploy to Azure Static Web Apps
       - name: Deploy to Azure Static Web Apps
         id: deploy
         uses: Azure/static-web-apps-deploy@v1
@@ -100,4 +194,15 @@ jobs:
           api_location: ''
           output_location: ''
           skip_app_build: true
-          production_branch: 'main'
+          production_branch: main
+
+      # Display deployment summary
+      - name: Deployment Summary
+        run: |
+          echo "Angular deployment completed successfully."
+          echo "Application URL: ${{ steps.deploy.outputs.static_web_app_url }}"
+
+          echo "## Angular Deployment Successful" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment: Development" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Application URL: ${{ steps.deploy.outputs.static_web_app_url }}" >> "$GITHUB_STEP_SUMMARY"

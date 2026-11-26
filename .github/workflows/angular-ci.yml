@@ -1,0 +1,61 @@
+
+name: Angular CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+
+  build:
+    name: Build Angular Application
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 15
+
+    steps:
+
+      # Checkout source code
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Configure Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # Verify installed versions
+      - name: Verify Node and npm
+        run: |
+          node --version
+          npm --version
+
+      # Install dependencies
+      - name: Install Dependencies
+        run: npm ci
+
+      # Build Angular application
+      - name: Build Angular Application
+        run: npm run build -- --configuration production
+
+      # Upload build output
+      - name: Upload Angular Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: angular-build-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7

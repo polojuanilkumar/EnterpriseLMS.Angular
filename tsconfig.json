@@ -3,6 +3,7 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
+    "rootDir": "./src",
     "outDir": "./dist/out-tsc",
     "strict": true,
     "noImplicitOverride": true,
@@ -11,8 +12,11 @@
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
     "isolatedModules": true,
+    "moduleDetection": "legacy",
     "esModuleInterop": true,
     "experimentalDecorators": true,
+    "resolveJsonModule": true,
+    "types": ["jasmine"],
     "moduleResolution": "bundler",
     "importHelpers": true,
     "target": "ES2022",

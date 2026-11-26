@@ -52,6 +52,7 @@
               "outputHashing": "all"
             },
             "development": {
+              "fileReplacements": [{ "replace": "src/environments/environment.ts", "with": "src/environments/environment.development.ts" }],
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
@@ -74,7 +75,7 @@
             "ssl": true,
             "sslCert": ".certs/localhost.pem",
             "sslKey": ".certs/localhost.key",
-            "proxyConfig": "proxy.conf.json"
+            "proxyConfig": "proxy.conf.js"
           }
         },
         "extract-i18n": {
@@ -128,5 +129,8 @@
     "@schematics/angular:resolver": {
       "typeSeparator": "."
     }
+  },
+  "cli": {
+    "analytics": false
   }
 }

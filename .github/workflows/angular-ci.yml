@@ -21,7 +21,7 @@ concurrency:
 
 env:
   NODE_VERSION: '24.22.1'
-  BUILD_OUTPUT: 'dist/enterprise-lms/browser'
+  BUILD_OUTPUT: 'dist/enterprise-lms-angular/browser'
 
 jobs:
 

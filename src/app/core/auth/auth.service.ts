@@ -6,7 +6,6 @@ import { firstValueFrom } from 'rxjs';
 import { AntiforgeryResponse, LoginRequest, LoginResponse, OrganizationOption, SessionResponse } from './auth.models';
 import { AuthState } from './auth-state';
 import { workspaceAllows, workspacePath } from './workspace-routing';
-import { environment } from '../../../environments/environment';
 
 export function authErrorMessage(error: unknown): string {
   if (error instanceof HttpErrorResponse) {
@@ -83,21 +82,10 @@ export class AuthService {
     this.state.setCsrf(response.requestToken);
   }
 
-async readSession(): Promise<void> {
-  const session = await firstValueFrom(
-    this.http.get<SessionResponse>(
-      `${environment.apiUrl}/bff/session`,
-      { withCredentials: true }
-    )
-  );
-
-  this.state.accept(
-    session,
-    () => {
-      void this.router.navigateByUrl('/login');
-    }
-  );
-}
+  async readSession(): Promise<void> {
+    const session = await firstValueFrom(this.http.get<SessionResponse>('/bff/session'));
+    this.state.accept(session, () => { void this.router.navigateByUrl('/login'); });
+  }
 
   async restore(): Promise<void> {
     try {

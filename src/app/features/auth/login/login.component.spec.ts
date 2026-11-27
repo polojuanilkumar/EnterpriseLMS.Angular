@@ -4,6 +4,7 @@ import { Router, provideRouter } from '@angular/router';
 import { bffInterceptor } from '../../../core/http/bff.interceptor';
 import { AuthState } from '../../../core/auth/auth-state';
 import { ComponentFixture, TestBed, fakeAsync, flushMicrotasks } from '@angular/core/testing';
+import { backendBffUrl } from '../../../core/http/bff-url';
 import { LoginComponent } from './login.component';
 
 describe('LoginComponent', () => {
@@ -90,16 +91,16 @@ describe('LoginComponent', () => {
     expect(fixture.componentInstance.pending()).toBeTrue();
     expect(element.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBeTrue();
     expect(element.querySelector<HTMLInputElement>('#password')!.value).toBe('');
-    http.expectOne('/bff/antiforgery').flush({ requestToken: 'anonymous', headerName: 'X-CSRF-TOKEN' });
+    http.expectOne(backendBffUrl('/antiforgery')).flush({ requestToken: 'anonymous', headerName: 'X-CSRF-TOKEN' });
     flushMicrotasks();
-    const login = http.expectOne('/bff/login');
+    const login = http.expectOne(backendBffUrl('/login'));
     expect(login.request.headers.get('X-CSRF-TOKEN')).toBe('anonymous');
     expect(login.request.body).toEqual({ email: 'learner@example.com', password: 'example-password' });
     login.flush({ userId: 'user', expiresAt: new Date(Date.now() + 60000).toISOString(), requiresOrganizationSelection: true });
     flushMicrotasks();
-    http.expectOne('/bff/antiforgery').flush({ requestToken: 'signed-in', headerName: 'X-CSRF-TOKEN' });
+    http.expectOne(backendBffUrl('/antiforgery')).flush({ requestToken: 'signed-in', headerName: 'X-CSRF-TOKEN' });
     flushMicrotasks();
-    http.expectOne('/bff/session').flush({ userId: 'user', expiresAt: new Date(Date.now() + 60000).toISOString(), selectedOrganization: null, isSuperAdmin: false, requiresOrganizationSelection: true, homePath: null });
+    http.expectOne(backendBffUrl('/session')).flush({ userId: 'user', expiresAt: new Date(Date.now() + 60000).toISOString(), selectedOrganization: null, isSuperAdmin: false, requiresOrganizationSelection: true, homePath: null });
     flushMicrotasks(); fixture.detectChanges();
     expect(navigate).toHaveBeenCalledOnceWith('/session');
     expect(fixture.componentInstance.pending()).toBeFalse();
@@ -111,14 +112,14 @@ describe('LoginComponent', () => {
   it('shows only safe validation errors, clears the password and does not retry a rejected login', fakeAsync(() => {
     const http = TestBed.inject(HttpTestingController);
     input('email', 'learner@example.com'); input('password', 'example-password'); submit();
-    http.expectOne('/bff/antiforgery').flush({ requestToken: 'csrf', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks();
-    http.expectOne('/bff/login').flush({ code: 'validation_failed', message: 'private-upstream-detail', fieldErrors: { password: ['example-password'] } }, { status: 400, statusText: 'Bad Request' });
+    http.expectOne(backendBffUrl('/antiforgery')).flush({ requestToken: 'csrf', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks();
+    http.expectOne(backendBffUrl('/login')).flush({ code: 'validation_failed', message: 'private-upstream-detail', fieldErrors: { password: ['example-password'] } }, { status: 400, statusText: 'Bad Request' });
     flushMicrotasks(); fixture.detectChanges();
     expect(element.textContent).toContain('Check your email and password values.');
     expect(element.textContent).not.toContain('private-upstream-detail');
     expect(element.textContent).not.toContain('example-password');
     expect(fixture.componentInstance.form.controls.password.value).toBe('');
     expect(fixture.componentInstance.pending()).toBeFalse();
-    http.expectNone('/bff/login');
+    http.expectNone(backendBffUrl('/login'));
   }));
 });

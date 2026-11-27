@@ -42,8 +42,8 @@
               @if (youtube(item.youTubeVideoId); as url) { <iframe class="youtube" [src]="url" [title]="item.title" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer" loading="lazy" allow="fullscreen" allowfullscreen></iframe> }
               @else { <p class="mt-4">This video reference is unavailable.</p> }
             }
-            @case (3) { @if (store.mediaUrl(item.id); as url) { <audio controls preload="none" [src]="url" [attr.aria-label]="item.title" (error)="store.mediaFailed(item.id)">Your browser cannot play this audio.</audio> } }
-            @case (4) { @if (store.mediaUrl(item.id); as url) { <video controls playsinline preload="none" [src]="url" [attr.aria-label]="item.title" (error)="store.mediaFailed(item.id)">Your browser cannot play this video.</video> } }
+            @case (3) { @if (store.mediaUrl(item.id); as url) { <audio controls preload="none" crossorigin="use-credentials" [src]="url" [attr.aria-label]="item.title" (error)="store.mediaFailed(item.id)">Your browser cannot play this audio.</audio> } }
+            @case (4) { @if (store.mediaUrl(item.id); as url) { <video controls playsinline preload="none" crossorigin="use-credentials" [src]="url" [attr.aria-label]="item.title" (error)="store.mediaFailed(item.id)">Your browser cannot play this video.</video> } }
             @case (5) {
               @if (pdf(item.id); as url) {
                 <iframe class="pdf" [src]="url" [title]="item.title" sandbox="" referrerpolicy="no-referrer" loading="lazy" (error)="store.mediaFailed(item.id)"></iframe>

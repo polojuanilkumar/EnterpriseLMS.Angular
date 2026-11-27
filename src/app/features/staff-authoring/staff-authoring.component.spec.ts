@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { AuthState } from '../../core/auth/auth-state';
+import { backendBffUrl } from '../../core/http/bff-url';
 import { selectedSession } from '../../core/auth/session.testing';
 import { bffInterceptor } from '../../core/http/bff.interceptor';
 import { StaffAuthoringComponent } from './staff-authoring.component';
@@ -12,7 +13,8 @@ import { staffAllowed, workspaceAllows } from '../../core/auth/workspace-routing
 
 describe('Staff authoring', () => {
   const courseId = '11111111-1111-1111-1111-111111111111', sectionId = '22222222-2222-2222-2222-222222222222', lessonId = '33333333-3333-3333-3333-333333333333', itemId = '44444444-4444-4444-4444-444444444444';
-  const base = '/bff/staff/courses/' + courseId, section = base + '/sections/' + sectionId, unit = section + '/lessons/' + lessonId;
+  const bff = backendBffUrl();
+  const base = backendBffUrl('/staff/courses/' + courseId), section = base + '/sections/' + sectionId, unit = section + '/lessons/' + lessonId;
   const data = new BehaviorSubject({ mode: 'courseForm' });
   const params = new BehaviorSubject(convertToParamMap({ courseId, sectionId, lessonId }));
   let http: HttpTestingController;
@@ -33,7 +35,7 @@ describe('Staff authoring', () => {
     flushMicrotasks(); fixture.detectChanges(); flushMicrotasks();
     return fixture;
   }
-  function csrf() { http.expectOne('/bff/antiforgery').flush({ requestToken: 'csrf', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); }
+  function csrf() { http.expectOne(bff + '/antiforgery').flush({ requestToken: 'csrf', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); }
   it('uses explicit typed form payloads with CSRF, blocks duplicate submits and retains validation values', fakeAsync(() => {
     const fixture = setup(); const component = fixture.componentInstance;
     component.form.title = '<script>Entered</script>'; component.changed();
@@ -55,7 +57,7 @@ describe('Staff authoring', () => {
   }));
   it('confirms publication and deletion, reorders the complete item set and refreshes reads', fakeAsync(() => {
     const fixture = setup('lesson'); const c = fixture.componentInstance; const confirmation = spyOn(window, 'confirm').and.returnValue(false);
-    void c.publication('publish'); void c.remove(c.page()!.content!.items[0]); http.expectNone('/bff/antiforgery');
+    void c.publication('publish'); void c.remove(c.page()!.content!.items[0]); http.expectNone(bff + '/antiforgery');
     confirmation.and.returnValue(true); void c.publication('publish'); void c.publication('publish'); csrf();
     const publication = http.expectOne(unit + '/publication'); expect(publication.request.body).toEqual({ action: 'publish', confirmed: true }); publication.flush(null); flushMicrotasks();
     http.expectOne(unit).flush(lessonPage()); flushMicrotasks();
@@ -69,7 +71,7 @@ describe('Staff authoring', () => {
     http.expectOne(base).error(new ProgressEvent('error')); flushMicrotasks();
     http.expectOne(base + '/edit?Page=1&PageSize=50&Search=').flush(editor); flushMicrotasks(); fixture.detectChanges();
     expect(c.locked()).toBeTrue(); expect(c.form.title).toBe('Entered'); expect(fixture.nativeElement.textContent).toContain('Stored state after recovery');
-    fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); http.expectNone('/bff/antiforgery');
+    fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); http.expectNone(bff + '/antiforgery');
   }));
   it('uploads multipart separately, retains returned attachment after attach conflict and never auto-reuploads', fakeAsync(() => {
     const fixture = setup('itemForm'), c = fixture.componentInstance; c.form = { title: 'PDF', type: 5, displayOrder: 0, isRequired: false }; fixture.detectChanges(); flushMicrotasks();
@@ -104,7 +106,7 @@ describe('Staff authoring', () => {
   }));
   it('does not send a mutation after CSRF bootstrap if the selected organization changed', fakeAsync(() => {
     const fixture = setup('lesson'), c = fixture.componentInstance; spyOn(window, 'confirm').and.returnValue(true); void c.publication('publish');
-    const token = http.expectOne('/bff/antiforgery'); TestBed.inject(AuthState).clear(); fixture.detectChanges(); token.flush({ requestToken: 'old', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); http.expectNone(unit + '/publication'); expect(c.pending()).toBeFalse();
+    const token = http.expectOne(bff + '/antiforgery'); TestBed.inject(AuthState).clear(); fixture.detectChanges(); token.flush({ requestToken: 'old', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); http.expectNone(unit + '/publication'); expect(c.pending()).toBeFalse();
   }));
   it('warns before discarding unsaved values and requires a selected organization for platform authoring', fakeAsync(() => {
     const fixture = setup(); fixture.componentInstance.changed(); const confirm = spyOn(window, 'confirm').and.returnValue(false); expect(fixture.componentInstance.canLeave()).toBeFalse(); expect(confirm).toHaveBeenCalled();
@@ -126,9 +128,9 @@ describe('Staff authoring', () => {
   it('retains course fields and selected Instructor while paging bounded choices', fakeAsync(() => {
     data.next({ mode: 'courseForm' }); params.next(convertToParamMap({})); TestBed.inject(AuthState).accept(selectedSession('Admin'), () => {});
     const fixture = TestBed.createComponent(StaffAuthoringComponent); fixture.detectChanges();
-    http.expectOne('/bff/staff/courses/new?Page=1&PageSize=50&Search=').flush({ ...editor, isAdmin: true, choices: { page: 1, pageSize: 50, total: 80 } }); flushMicrotasks(); fixture.detectChanges(); flushMicrotasks();
+    http.expectOne(bff + '/staff/courses/new?Page=1&PageSize=50&Search=').flush({ ...editor, isAdmin: true, choices: { page: 1, pageSize: 50, total: 80 } }); flushMicrotasks(); fixture.detectChanges(); flushMicrotasks();
     const c = fixture.componentInstance; c.form.title = 'Entered'; c.form.instructorId = itemId; c.changed(); void c.choices(1);
-    http.expectOne('/bff/staff/courses/new?Page=2&PageSize=50&Search=').flush({ ...editor, isAdmin: true, choices: { page: 2, pageSize: 50, total: 80 } }); flushMicrotasks(); fixture.detectChanges();
+    http.expectOne(bff + '/staff/courses/new?Page=2&PageSize=50&Search=').flush({ ...editor, isAdmin: true, choices: { page: 2, pageSize: 50, total: 80 } }); flushMicrotasks(); fixture.detectChanges();
     expect(c.form.title).toBe('Entered'); expect(c.form.instructorId).toBe(itemId); expect(c.dirty).toBeTrue();
   }));
   it('renders readiness as a read-only inventory without adding blockers or quiz configuration claims', fakeAsync(() => {
@@ -139,12 +141,12 @@ describe('Staff authoring', () => {
   }));
   it('checks the stored parent collection after uncertain creation instead of treating a blank new form as proof', fakeAsync(() => {
     params.next(convertToParamMap({})); const fixture = TestBed.createComponent(StaffAuthoringComponent); fixture.detectChanges();
-    const url = '/bff/staff/courses/new?Page=1&PageSize=50&Search=';
+    const url = bff + '/staff/courses/new?Page=1&PageSize=50&Search=';
     http.expectOne(url).flush(editor); flushMicrotasks(); fixture.detectChanges(); flushMicrotasks();
     fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); csrf();
-    const write = http.expectOne('/bff/staff/courses'); expect(write.request.method).toBe('POST'); write.error(new ProgressEvent('error')); flushMicrotasks();
+    const write = http.expectOne(bff + '/staff/courses'); expect(write.request.method).toBe('POST'); write.error(new ProgressEvent('error')); flushMicrotasks();
     http.expectOne(url).flush(editor); flushMicrotasks();
-    const recovery = http.expectOne('/bff/staff/courses'); expect(recovery.request.method).toBe('GET'); recovery.flush({ courses: [{ id: courseId, title: 'Possibly created course' }] }); flushMicrotasks(); fixture.detectChanges();
+    const recovery = http.expectOne(bff + '/staff/courses'); expect(recovery.request.method).toBe('GET'); recovery.flush({ courses: [{ id: courseId, title: 'Possibly created course' }] }); flushMicrotasks(); fixture.detectChanges();
     expect(fixture.componentInstance.locked()).toBeTrue(); expect(fixture.nativeElement.textContent).toContain('Possibly created course'); expect(fixture.componentInstance.recovered()[0].path).toBe('/workspace/staff/courses/' + courseId);
     TestBed.inject(AuthState).clear(); fixture.detectChanges(); expect(fixture.componentInstance.recovered()).toEqual([]);
   }));

@@ -74,8 +74,7 @@
           "options": {
             "ssl": true,
             "sslCert": ".certs/localhost.pem",
-            "sslKey": ".certs/localhost.key",
-            "proxyConfig": "proxy.conf.js"
+            "sslKey": ".certs/localhost.key"
           }
         },
         "extract-i18n": {

@@ -43,8 +43,8 @@
             @switch (item.type) {
               @case (1) { <p class="whitespace-pre-wrap break-words">{{ item.text }}</p> }
               @case (2) { @if (youtube(item.youTubeVideoId); as embed) { <iframe [src]="embed" [title]="item.title" class="aspect-video w-full" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="no-referrer" allow="fullscreen" allowfullscreen></iframe> } @else { <p>No safe YouTube preview is available.</p> } }
-              @case (3) { <audio controls preload="metadata" [src]="mediaUrl(item)" [attr.aria-label]="item.title" class="w-full" (error)="mediaError(item)">Audio playback is unavailable.</audio> }
-              @case (4) { <video controls preload="metadata" [src]="mediaUrl(item)" [attr.aria-label]="item.title" class="w-full" (error)="mediaError(item)">Video playback is unavailable.</video><p>Captions depend on the supplied media; no caption track is provided by this contract.</p> }
+              @case (3) { <audio controls preload="metadata" crossorigin="use-credentials" [src]="mediaUrl(item)" [attr.aria-label]="item.title" class="w-full" (error)="mediaError(item)">Audio playback is unavailable.</audio> }
+              @case (4) { <video controls preload="metadata" crossorigin="use-credentials" [src]="mediaUrl(item)" [attr.aria-label]="item.title" class="w-full" (error)="mediaError(item)">Video playback is unavailable.</video><p>Captions depend on the supplied media; no caption track is provided by this contract.</p> }
               @case (5) { <iframe [src]="pdf(item)" [title]="item.title + ' PDF preview'" sandbox="" class="h-96 w-full" referrerpolicy="no-referrer" (error)="mediaError(item)"></iframe><p>PDF preview depends on browser support. Use the download if it is blank.</p> }
             }
             @if (mediaUrl(item); as url) { <a class="block text-blue-700 underline" [href]="url + '?download=true'">Download {{ item.title }}</a> }

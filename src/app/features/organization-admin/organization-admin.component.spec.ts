@@ -6,13 +6,14 @@ import { BehaviorSubject } from 'rxjs';
 import { AuthState } from '../../core/auth/auth-state';
 import { selectedSession } from '../../core/auth/session.testing';
 import { bffInterceptor } from '../../core/http/bff.interceptor';
+import { backendBffUrl } from '../../core/http/bff-url';
 import { adminAllowed, workspaceAllows } from '../../core/auth/workspace-routing';
 import { OrganizationAdminComponent } from './organization-admin.component';
 import { Invitation, LearnerReport, invitationState } from './organization-admin.models';
 
 describe('Organization administration, reports and audit', () => {
   const courseId = '11111111-1111-1111-1111-111111111111', userId = '22222222-2222-2222-2222-222222222222', eventId = '33333333-3333-3333-3333-333333333333';
-  const org = '/bff/organization', reports = '/bff/staff/reports/courses', pageQuery = '?page=1&pageSize=20';
+  const org = backendBffUrl('/organization'), reports = backendBffUrl('/staff/reports/courses'), pageQuery = '?page=1&pageSize=20';
   const member = { organizationId: 'org', userId, firstName: '<script>First</script>', lastName: 'Name', email: 'member@example.test', role: 2 };
   const members = () => ({ page: 1, pageSize: 20, total: 1, members: [{ ...member }] });
   const invitation = (): Invitation => ({ id: userId, organizationId: 'org', email: 'invite@example.test', role: 1, createdAt: '2026-10-01T00:00:00Z', expiresAt: new Date(Date.now() + 86400000).toISOString(), acceptedAt: null, revokedAt: null, deliveredAt: null });
@@ -33,7 +34,7 @@ describe('Organization administration, reports and audit', () => {
     const endpoint = mode === 'reports' ? reports : mode === 'learners' ? `${reports}/${courseId}/learners` : mode === 'instructor' ? `${org}/courses/${courseId}/instructor` : mode === 'auditDetail' ? `${org}/audit/${eventId}` : `${org}/${mode}`;
     http.expectOne(endpoint + (mode === 'auditDetail' ? '' : pageQuery)).flush(body); flushMicrotasks(); fixture.detectChanges(); flushMicrotasks(); return fixture;
   }
-  function csrf() { http.expectOne('/bff/antiforgery').flush({ requestToken: 'csrf', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); }
+  function csrf() { http.expectOne(backendBffUrl('/antiforgery')).flush({ requestToken: 'csrf', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); }
   function submit(fixture: ReturnType<typeof setup>, index = 1) { fixture.nativeElement.querySelectorAll('form')[index].dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); }
   it('shows encoded bounded members and applies search/role filters without mutating', fakeAsync(() => {
     const fixture = setup(), c = fixture.componentInstance;
@@ -43,7 +44,7 @@ describe('Organization administration, reports and audit', () => {
   }));
   it('confirms exact-email assignment, sends no actor/organization IDs, blocks duplicate clicks and retains validation values', fakeAsync(() => {
     const fixture = setup(), c = fixture.componentInstance; const confirm = spyOn(window, 'confirm').and.returnValue(false);
-    c.memberForm = { email: 'exact@example.test', role: 1 }; c.changed(); fixture.detectChanges(); flushMicrotasks(); submit(fixture); http.expectNone('/bff/antiforgery');
+    c.memberForm = { email: 'exact@example.test', role: 1 }; c.changed(); fixture.detectChanges(); flushMicrotasks(); submit(fixture); http.expectNone(backendBffUrl('/antiforgery'));
     confirm.and.returnValue(true); submit(fixture); submit(fixture); csrf(); const write = http.expectOne(org + '/members'); expect(write.request.method).toBe('POST'); expect(write.request.body).toEqual({ email: 'exact@example.test', role: 1, confirmed: true }); expect(write.request.headers.get('X-CSRF-TOKEN')).toBe('csrf');
     write.flush({ code: 'validation_failed', message: 'Enter an exact email address, without a display name.' }, { status: 400, statusText: 'Bad Request' }); flushMicrotasks(); expect(c.memberForm.email).toBe('exact@example.test'); expect(c.pending()).toBeFalse(); expect(c.dirty).toBeTrue();
   }));
@@ -59,17 +60,17 @@ describe('Organization administration, reports and audit', () => {
   }));
   it('recovers ambiguous membership writes through GET only and locks further writes', fakeAsync(() => {
     const fixture = setup(), c = fixture.componentInstance; c.memberForm = { email: 'exact@example.test', role: 1 }; fixture.detectChanges(); flushMicrotasks(); spyOn(window, 'confirm').and.returnValue(true); submit(fixture); csrf();
-    http.expectOne(org + '/members').error(new ProgressEvent('error')); flushMicrotasks(); const read = http.expectOne(org + '/members' + pageQuery); expect(read.request.method).toBe('GET'); read.flush(members()); flushMicrotasks(); expect(c.locked()).toBeTrue(); expect(c.memberForm.email).toBe('exact@example.test'); submit(fixture); http.expectNone('/bff/antiforgery');
+    http.expectOne(org + '/members').error(new ProgressEvent('error')); flushMicrotasks(); const read = http.expectOne(org + '/members' + pageQuery); expect(read.request.method).toBe('GET'); read.flush(members()); flushMicrotasks(); expect(c.locked()).toBeTrue(); expect(c.memberForm.email).toBe('exact@example.test'); submit(fixture); http.expectNone(backendBffUrl('/antiforgery'));
   }));
   it('creates/reissues only with confirmation and reports delivery uncertainty without automatic reissue', fakeAsync(() => {
     const fixture = setup('invitations', invitations()), c = fixture.componentInstance; expect(fixture.nativeElement.textContent).toContain('Unconfirmed');
-    c.inviteForm = { email: 'invite@example.test', role: 2, reissue: true }; fixture.detectChanges(); flushMicrotasks(); const confirm = spyOn(window, 'confirm').and.returnValue(false); submit(fixture); http.expectNone('/bff/antiforgery'); confirm.and.returnValue(true); submit(fixture); submit(fixture); csrf();
+    c.inviteForm = { email: 'invite@example.test', role: 2, reissue: true }; fixture.detectChanges(); flushMicrotasks(); const confirm = spyOn(window, 'confirm').and.returnValue(false); submit(fixture); http.expectNone(backendBffUrl('/antiforgery')); confirm.and.returnValue(true); submit(fixture); submit(fixture); csrf();
     const write = http.expectOne(org + '/invitations'); expect(write.request.body).toEqual({ email: 'invite@example.test', role: 2, reissue: true, confirmed: true }); expect(write.request.headers.get('X-CSRF-TOKEN')).toBe('csrf'); write.flush({}, { status: 502, statusText: 'Bad Gateway' }); flushMicrotasks(); http.expectOne(org + '/invitations' + pageQuery).flush(invitations()); flushMicrotasks(); expect(c.locked()).toBeTrue(); expect(c.inviteForm.email).toBe('invite@example.test'); expect(c.notice()).toContain('no mutation or delivery was replayed');
   }));
   it('confirms invitation revocation and labels terminal, expired and sender-accepted states', fakeAsync(() => {
     const page = invitations(); page.items[0].deliveredAt = '2026-10-01T00:01:00Z'; const fixture = setup('invitations', page), c = fixture.componentInstance;
     expect(fixture.nativeElement.textContent).toContain('Accepted by sender'); expect(fixture.nativeElement.textContent).toContain('does not confirm inbox receipt');
-    const confirm = spyOn(window, 'confirm').and.returnValue(false); void c.revoke(page.items[0]); http.expectNone('/bff/antiforgery'); confirm.and.returnValue(true); void c.revoke(page.items[0]); csrf(); const write = http.expectOne(org + '/invitations/' + userId + '/revoke'); expect(write.request.body).toEqual({ confirmed: true }); write.flush(null); flushMicrotasks(); http.expectOne(org + '/invitations' + pageQuery).flush(page); flushMicrotasks();
+    const confirm = spyOn(window, 'confirm').and.returnValue(false); void c.revoke(page.items[0]); http.expectNone(backendBffUrl('/antiforgery')); confirm.and.returnValue(true); void c.revoke(page.items[0]); csrf(); const write = http.expectOne(org + '/invitations/' + userId + '/revoke'); expect(write.request.body).toEqual({ confirmed: true }); write.flush(null); flushMicrotasks(); http.expectOne(org + '/invitations' + pageQuery).flush(page); flushMicrotasks();
     expect(invitationState({ ...invitation(), acceptedAt: '2026-10-01T00:00:00Z' })).toBe('Accepted'); expect(invitationState({ ...invitation(), revokedAt: '2026-10-01T00:00:00Z' })).toBe('Revoked'); expect(invitationState({ ...invitation(), expiresAt: '2020-01-01T00:00:00Z' })).toBe('Expired');
   }));
   it('keeps Instructor selection while paging and confirms the typed reassignment payload', fakeAsync(() => {
@@ -110,7 +111,7 @@ describe('Organization administration, reports and audit', () => {
     const fixture = setup('auditDetail', auditRow()), c = fixture.componentInstance; void c.load(); const old = http.expectOne(org + '/audit/' + eventId); tick(1000); fixture.detectChanges(); old.flush(auditRow()); flushMicrotasks(); expect(c.event()).toBeNull(); expect(c.actorId).toBe(''); expect(c.canLeave()).toBeTrue();
   }));
   it('does not mutate after CSRF bootstrap when session context changed', fakeAsync(() => {
-    const fixture = setup(), c = fixture.componentInstance; c.memberForm = { email: 'exact@example.test', role: 1 }; fixture.detectChanges(); flushMicrotasks(); spyOn(window, 'confirm').and.returnValue(true); submit(fixture); const csrfRequest = http.expectOne('/bff/antiforgery'); TestBed.inject(AuthState).clear(); fixture.detectChanges(); csrfRequest.flush({ requestToken: 'old', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); http.expectNone(org + '/members'); expect(c.members()).toBeNull();
+    const fixture = setup(), c = fixture.componentInstance; c.memberForm = { email: 'exact@example.test', role: 1 }; fixture.detectChanges(); flushMicrotasks(); spyOn(window, 'confirm').and.returnValue(true); submit(fixture); const csrfRequest = http.expectOne(backendBffUrl('/antiforgery')); TestBed.inject(AuthState).clear(); fixture.detectChanges(); csrfRequest.flush({ requestToken: 'old', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); http.expectNone(org + '/members'); expect(c.members()).toBeNull();
   }));
   it('denies member/audit data to Instructor/Student UI, requires selected platform scope and warns on unsaved values', fakeAsync(() => {
     TestBed.inject(AuthState).accept(selectedSession('Instructor'), () => {}); const fixture = TestBed.createComponent(OrganizationAdminComponent); fixture.detectChanges(); http.expectNone(org + '/members' + pageQuery); expect(adminAllowed(selectedSession())).toBeFalse(); expect(adminAllowed(selectedSession('Instructor'))).toBeFalse(); expect(adminAllowed({ ...selectedSession(null, true), selectedOrganization: null })).toBeFalse();

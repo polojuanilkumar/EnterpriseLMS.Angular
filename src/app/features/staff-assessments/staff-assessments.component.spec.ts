@@ -6,13 +6,14 @@ import { BehaviorSubject } from 'rxjs';
 import { AuthState } from '../../core/auth/auth-state';
 import { selectedSession } from '../../core/auth/session.testing';
 import { bffInterceptor } from '../../core/http/bff.interceptor';
+import { backendBffUrl } from '../../core/http/bff-url';
 import { StaffAssessmentsComponent } from './staff-assessments.component';
 import { AssignmentPage, QuizPage, decimalValid } from './staff-assessments.models';
 import { workspaceAllows } from '../../core/auth/workspace-routing';
 
 describe('Staff assessment authoring and grading', () => {
   const courseId = '11111111-1111-1111-1111-111111111111', sectionId = '22222222-2222-2222-2222-222222222222', lessonId = '33333333-3333-3333-3333-333333333333', quizId = '44444444-4444-4444-4444-444444444444', questionId = '55555555-5555-5555-5555-555555555555', optionId = '66666666-6666-6666-6666-666666666666', assignmentId = '77777777-7777-7777-7777-777777777777', submissionId = '88888888-8888-8888-8888-888888888888';
-  const root = `/bff/staff/courses/${courseId}/sections/${sectionId}/lessons/${lessonId}`;
+  const root = backendBffUrl(`/staff/courses/${courseId}/sections/${sectionId}/lessons/${lessonId}`);
   const settings = { title: 'Quiz', description: '<script>description</script>', passingPercentage: '50', timeLimitInMinutes: 15, maxAttempts: 2 };
   const quizData = (): QuizPage => ({ quiz: { ...settings, id: quizId, isPublished: false }, form: { ...settings }, questions: [{ question: { id: questionId, questionText: '<img src=x>', questionType: 1, displayOrder: 1, marks: '2' }, options: [{ id: optionId, optionText: '<script>Option</script>', isCorrect: true, displayOrder: 1 }] }] });
   const assignmentData = (): AssignmentPage => ({ assignments: [{ id: assignmentId, title: 'Assignment', instructions: 'Exact\r\nInstructions', dueAtUtc: '2026-12-01T10:20:30.1234567Z', maximumMarks: '9999999999999999.99', isPublished: false, frozen: false }], assignment: null, submission: null });
@@ -32,7 +33,7 @@ describe('Staff assessment authoring and grading', () => {
     http.expectOne(mode === 'quiz' ? root + '/quiz' : root + '/assignments' + (mode === 'submission' ? `/${assignmentId}/submissions/${submissionId}` : '')).flush(response);
     flushMicrotasks(); fixture.detectChanges(); flushMicrotasks(); return fixture;
   }
-  function csrf() { http.expectOne('/bff/antiforgery').flush({ requestToken: 'csrf', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); }
+  function csrf() { http.expectOne(backendBffUrl('/antiforgery')).flush({ requestToken: 'csrf', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); }
   function submit(fixture: ReturnType<typeof setup>, index = 0) { fixture.nativeElement.querySelectorAll('form')[index].dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); }
   it('renders staff answer options safely and saves settings explicitly with CSRF and duplicate prevention', fakeAsync(() => {
     const fixture = setup(); const c = fixture.componentInstance;
@@ -53,7 +54,7 @@ describe('Staff assessment authoring and grading', () => {
   }));
   it('confirms publication and deletion and displays server publication errors as text', fakeAsync(() => {
     const fixture = setup(), c = fixture.componentInstance; const confirm = spyOn(window, 'confirm').and.returnValue(false);
-    void c.publishQuiz(true); void c.deleteQuiz(); void c.deletePart(questionId, optionId); http.expectNone('/bff/antiforgery');
+    void c.publishQuiz(true); void c.deleteQuiz(); void c.deletePart(questionId, optionId); http.expectNone(backendBffUrl('/antiforgery'));
     confirm.and.returnValue(true); void c.publishQuiz(true); csrf(); const write = http.expectOne(root + '/quiz/' + quizId + '/publication'); expect(write.request.body).toEqual({ action: 'publish', confirmed: true });
     write.flush({ code: 'conflict', message: 'Question 1 must have exactly one correct option.' }, { status: 409, statusText: 'Conflict' }); flushMicrotasks(); http.expectOne(root + '/quiz').flush(quizData()); flushMicrotasks(); expect(c.error()).toContain('exactly one correct');
     void c.deletePart(questionId, optionId); csrf(); const deletion = http.expectOne(root + `/quiz/${quizId}/questions/${questionId}/options/${optionId}/delete`); expect(deletion.request.body).toEqual({ confirmed: true }); deletion.flush(null); flushMicrotasks(); http.expectOne(root + '/quiz').flush(quizData()); flushMicrotasks();
@@ -81,7 +82,7 @@ describe('Staff assessment authoring and grading', () => {
   }));
   it('requires confirmation and preserves decimal graded zero, showing final feedback with no override form', fakeAsync(() => {
     const fixture = setup('submission', workData()), c = fixture.componentInstance; const confirm = spyOn(window, 'confirm').and.returnValue(false);
-    c.gradeForm = { marks: '0.00', feedback: '<script>feedback</script>' }; fixture.detectChanges(); flushMicrotasks(); submit(fixture); http.expectNone('/bff/antiforgery'); confirm.and.returnValue(true); submit(fixture); submit(fixture); csrf();
+    c.gradeForm = { marks: '0.00', feedback: '<script>feedback</script>' }; fixture.detectChanges(); flushMicrotasks(); submit(fixture); http.expectNone(backendBffUrl('/antiforgery')); confirm.and.returnValue(true); submit(fixture); submit(fixture); csrf();
     const url = root + `/assignments/${assignmentId}/submissions/${submissionId}`; const write = http.expectOne(url + '/grade'); expect(write.request.body).toEqual({ marks: '0.00', feedback: '<script>feedback</script>', confirmed: true });
     write.flush(null); flushMicrotasks(); const graded = workData(); graded.submission!.grade = { marks: '0.00', feedback: '<script>feedback</script>', gradedAt: '2026-10-01T00:00:00Z' }; http.expectOne(url).flush(graded); flushMicrotasks(); fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Existing final grade: 0.00 / 10.00'); expect(fixture.nativeElement.querySelector('script,img,form')).toBeNull(); expect(fixture.nativeElement.querySelector('a[href$="/attachment"]')).not.toBeNull();
@@ -94,7 +95,7 @@ describe('Staff assessment authoring and grading', () => {
   it('recovers uncertain quiz creation by GET and locks writes without dropping entered settings', fakeAsync(() => {
     const empty = quizData(); empty.quiz = null; empty.questions = []; const fixture = setup('quiz', empty), c = fixture.componentInstance; submit(fixture); csrf();
     http.expectOne(root + '/quiz').error(new ProgressEvent('error')); flushMicrotasks(); const read = http.expectOne(root + '/quiz'); expect(read.request.method).toBe('GET'); read.flush(quizData()); flushMicrotasks();
-    expect(c.locked()).toBeTrue(); expect(c.quizForm.title).toBe('Quiz'); submit(fixture); http.expectNone('/bff/antiforgery');
+    expect(c.locked()).toBeTrue(); expect(c.quizForm.title).toBe('Quiz'); submit(fixture); http.expectNone(backendBffUrl('/antiforgery'));
   }));
   it('clears sensitive assessment state on organization changes and rejects late reads/writes', fakeAsync(() => {
     const fixture = setup(), c = fixture.componentInstance; void c.load(); const stale = http.expectOne(root + '/quiz'); c.questionForm.questionText = 'Old secret'; c.changed();
@@ -103,7 +104,7 @@ describe('Staff assessment authoring and grading', () => {
   }));
   it('checks context again after CSRF and clears at absolute expiry', fakeAsync(() => {
     TestBed.inject(AuthState).accept({ ...selectedSession('Instructor'), expiresAt: new Date(Date.now() + 1000).toISOString() }, () => {});
-    const fixture = setup(), c = fixture.componentInstance; submit(fixture); const token = http.expectOne('/bff/antiforgery'); tick(1000); fixture.detectChanges(); token.flush({ requestToken: 'old', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); http.expectNone(root + '/quiz/' + quizId); expect(c.quiz()).toBeNull(); expect(c.pending()).toBeFalse();
+    const fixture = setup(), c = fixture.componentInstance; submit(fixture); const token = http.expectOne(backendBffUrl('/antiforgery')); tick(1000); fixture.detectChanges(); token.flush({ requestToken: 'old', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); http.expectNone(root + '/quiz/' + quizId); expect(c.quiz()).toBeNull(); expect(c.pending()).toBeFalse();
   }));
   it('paginates staff submissions through bounded reads and distinguishes ungraded from graded zero', fakeAsync(() => {
     data.next({ mode: 'assignment' }); params.next(convertToParamMap({ courseId, sectionId, lessonId, assignmentId }));

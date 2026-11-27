@@ -17,19 +17,20 @@ import { workspaceAllows } from './core/auth/workspace-routing';
 import { StudentAssignmentsComponent } from './features/student-assignments/student-assignments.component';
 import { assignmentData, submittedData, assignmentId, submissionId } from './features/student-assignments/student-assignments.testing';
 import { gradeData } from './features/student-grades/student-grades.testing';
+import { backendBffUrl } from './core/http/bff-url';
 
 describe('App routing', () => {
   beforeEach(() => TestBed.configureTestingModule({ providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()] }));
   afterEach(() => TestBed.inject(AuthState).clear());
 
-  it('prefixes lazy workspace navigation with /app while keeping BFF requests root-relative', async () => {
+  it('prefixes lazy workspace navigation with /app while keeping API requests on the backend origin', async () => {
     TestBed.configureTestingModule({ providers: [{ provide: APP_BASE_HREF, useValue: '/app/' }] });
     TestBed.inject(AuthState).accept(selectedSession('Instructor'), () => {});
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/workspace/instructor'); harness.detectChanges();
     expect(harness.routeNativeElement?.querySelector('a[href="/app/workspace/staff/courses"]')).not.toBeNull();
     await harness.navigateByUrl('/workspace/staff/courses');
-    const read = TestBed.inject(HttpTestingController).expectOne('/bff/staff/courses');
+    const read = TestBed.inject(HttpTestingController).expectOne(backendBffUrl('/staff/courses'));
     expect(read.request.method).toBe('GET'); read.flush({ courses: [] });
     await harness.fixture.whenStable(); harness.detectChanges();
     expect(TestBed.inject(Router).url).toBe('/workspace/staff/courses');
@@ -94,7 +95,7 @@ describe('App routing', () => {
       ['/' + c + '/sections/' + s + '/lessons/' + l, { lesson: { id: l, title: 'Lesson' }, content: { items: [], legacy: null } }],
     ] as const) {
       const path = '/workspace/staff/courses' + suffix;
-      await harness.navigateByUrl(path); TestBed.inject(HttpTestingController).expectOne('/bff/staff/courses' + suffix).flush(body);
+      await harness.navigateByUrl(path); TestBed.inject(HttpTestingController).expectOne(backendBffUrl('/staff/courses' + suffix)).flush(body);
       await harness.fixture.whenStable(); harness.detectChanges(); expect(TestBed.inject(Router).url).toBe(path);
       expect(harness.routeNativeElement?.querySelector('header')).not.toBeNull();
       expect(harness.routeNativeElement?.querySelector('a[href="/workspace/staff/courses"]')).not.toBeNull();
@@ -153,7 +154,7 @@ describe('App routing', () => {
     ] as const) {
       const path = '/workspace/student/courses/' + course + suffix;
       await harness.navigateByUrl(path);
-      TestBed.inject(HttpTestingController).expectOne('/bff/student/courses/' + course + suffix).flush({ organizationId: 'org', ...body });
+      TestBed.inject(HttpTestingController).expectOne(backendBffUrl('/student/courses/' + course + suffix)).flush({ organizationId: 'org', ...body });
       await harness.fixture.whenStable(); harness.detectChanges();
       for (const request of TestBed.inject(HttpTestingController).match(r => r.url.endsWith('/progress'))) {
         expect(request.request.method).toBe('GET');

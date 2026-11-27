@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
+import { backendBffUrl } from '../../core/http/bff-url';
 import { AuthService } from '../../core/auth/auth.service';
 import { adminAllowed, staffAllowed } from '../../core/auth/workspace-routing';
 import { SessionResponse } from '../../core/auth/auth.models';
@@ -59,7 +60,7 @@ export class StaffAuthoringComponent {
   get coursePath(): string { return this.root + '/' + this.courseId; }
   get sectionPath(): string { return this.coursePath + '/sections/' + this.sectionId; }
   get lessonPath(): string { return this.sectionPath + '/lessons/' + this.lessonId; }
-  get base(): string { return '/bff/staff/courses' + (this.courseId ? '/' + this.courseId : ''); }
+  get base(): string { return backendBffUrl('/staff/courses' + (this.courseId ? '/' + this.courseId : '')); }
   get sectionBase(): string { return this.base + '/sections/' + this.sectionId; }
   get lessonBase(): string { return this.sectionBase + '/lessons/' + this.lessonId; }
   get isForm(): boolean { return this.mode.endsWith('Form'); }
@@ -104,7 +105,7 @@ export class StaffAuthoringComponent {
       case 'readiness': url += '/readiness'; break;
     }
     try {
-      const result = await firstValueFrom(this.http.get<Page & Readiness>(url));
+      const result = await firstValueFrom(this.http.get<Page & Readiness>(url, { withCredentials: true }));
       if (!this.current(epoch) || read !== this.read) return;
       this.releaseMedia();
       if (this.mode === 'readiness') this.readiness.set(result);
@@ -186,10 +187,10 @@ export class StaffAuthoringComponent {
     this.pending.set(true); this.error.set(''); this.notice.set('');
     let sent = false;
     try {
-      await this.auth.bootstrapCsrf();
+      await this.auth.bootstrapCsrf(backendBffUrl('/antiforgery'));
       if (!this.current(epoch)) return;
       sent = true;
-      const result = await firstValueFrom(this.http.request(method, url, { body }));
+      const result = await firstValueFrom(this.http.request(method, url, { body, withCredentials: true }));
       if (this.current(epoch)) success(result);
     } catch (error) {
       if (!this.current(epoch)) return;
@@ -205,12 +206,12 @@ export class StaffAuthoringComponent {
     } finally { if (this.current(epoch)) this.pending.set(false); }
   }
   private async recoverCreatedChildren(epoch: number): Promise<void> {
-    const creation = this.mode === 'courseForm' && !this.courseId ? { url: '/bff/staff/courses', path: this.root, kind: 'courses' as const }
+    const creation = this.mode === 'courseForm' && !this.courseId ? { url: backendBffUrl('/staff/courses'), path: this.root, kind: 'courses' as const }
       : this.mode === 'sectionForm' && !this.sectionId ? { url: this.base, path: this.coursePath + '/sections', kind: 'sections' as const }
       : this.mode === 'lessonForm' && !this.lessonId ? { url: this.sectionBase, path: this.sectionPath + '/lessons', kind: 'lessons' as const } : null;
     if (!creation) return;
     try {
-      const stored = await firstValueFrom(this.http.get<Page>(creation.url));
+      const stored = await firstValueFrom(this.http.get<Page>(creation.url, { withCredentials: true }));
       if (this.current(epoch)) {
         this.recovered.set((stored[creation.kind] ?? []).map(row => ({ id: row.id, title: row.title, path: creation.path + '/' + row.id })));
         this.notice.set('Creation outcome is uncertain. The read-only parent list below shows current stored records. Inspect any matching record before reopening the editor; no write was repeated.');
@@ -244,7 +245,7 @@ export class StaffAuthoringComponent {
   async mediaError(item: Item): Promise<void> {
     const url = this.mediaUrl(item), epoch = this.epoch;
     if (!url || !this.current(epoch)) return;
-    try { await firstValueFrom(this.http.head(url)); if (this.current(epoch)) this.error.set('The browser could not preview this format. Try the authorized download or another supported browser.'); }
+    try { await firstValueFrom(this.http.head(url, { withCredentials: true })); if (this.current(epoch)) this.error.set('The browser could not preview this format. Try the authorized download or another supported browser.'); }
     catch (error) { if (this.current(epoch)) { this.error.set(this.message(error)); this.releaseMedia(); this.page.set(null); } }
   }
   private clearFile(): void { this.file = null; this.element.nativeElement.querySelectorAll<HTMLInputElement>('input[type=file]').forEach(input => input.value = ''); }

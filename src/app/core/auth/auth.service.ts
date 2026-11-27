@@ -75,9 +75,9 @@ export class AuthService {
     } finally { this.mutating.set(false); }
   }
 
-  async bootstrapCsrf(): Promise<void> {
+  async bootstrapCsrf(url = '/bff/antiforgery'): Promise<void> {
     this.state.setCsrf(null);
-    const response = await firstValueFrom(this.http.get<AntiforgeryResponse>('/bff/antiforgery'));
+    const response = await firstValueFrom(this.http.get<AntiforgeryResponse>(url, { withCredentials: true }));
     if (response.headerName !== 'X-CSRF-TOKEN' || !response.requestToken) throw new Error('Invalid security response');
     this.state.setCsrf(response.requestToken);
   }

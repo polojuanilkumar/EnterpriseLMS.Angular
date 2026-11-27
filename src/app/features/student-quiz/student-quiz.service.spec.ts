@@ -6,6 +6,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { AuthState } from '../../core/auth/auth-state';
 import { selectedSession } from '../../core/auth/session.testing';
 import { bffInterceptor } from '../../core/http/bff.interceptor';
+import { backendBffUrl } from '../../core/http/bff-url';
 import { selection } from '../student-viewer/student-viewer.testing';
 import { viewerRoot } from '../student-viewer/student-viewer.models';
 import { StudentQuizService } from './student-quiz.service';
@@ -22,9 +23,9 @@ describe('Student quiz state and explicit requests', () => {
   afterEach(() => { state.clear(); http.verify(); });
   function read(page: StudentQuiz, path = root): void { const request = http.expectOne(path); expect(request.request.method).toBe('GET'); request.flush(page); flushMicrotasks(); }
   function start(page = quizPage()): void { store.bind(state.session(), false, selection, page.attempt ? attemptId : null); read(page, page.attempt ? attemptPath : root); }
-  function csrf(): void { http.expectOne('/bff/antiforgery').flush({ requestToken: 'csrf', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); }
+  function csrf(): void { http.expectOne(backendBffUrl('/antiforgery')).flush({ requestToken: 'csrf', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); }
   it('reads instructions and resumes the stored attempt without starting or restoring answers', fakeAsync(() => {
-    start(); expect(store.canStart()).toBeTrue(); http.expectNone('/bff/antiforgery');
+    start(); expect(store.canStart()).toBeTrue(); http.expectNone(backendBffUrl('/antiforgery'));
     const page = quizPage(true); start(page); expect(store.canStart()).toBeFalse(); expect(store.answers()).toEqual({});
     expect(store.page()?.attempt?.deadline).toBe(page.attempt!.deadline); expect(store.remaining()).toBe(60); http.expectNone(root + '/start');
     void store.load(); read(page, attemptPath); expect(store.page()?.attempt?.deadline).toBe(page.attempt!.deadline);
@@ -41,7 +42,7 @@ describe('Student quiz state and explicit requests', () => {
     expect(store.answers()[questions[0].id]).toEqual([questions[0].options[1].id]);
     expect(store.answers()[questions[1].id]).toEqual(questions[1].options.map(o => o.id));
     expect(store.answers()[questions[2].id]).toEqual([questions[2].options[1].id]);
-    void store.submit(); http.expectNone('/bff/antiforgery'); store.askSubmit(); void store.submit(); void store.submit(); csrf();
+    void store.submit(); http.expectNone(backendBffUrl('/antiforgery')); store.askSubmit(); void store.submit(); void store.submit(); csrf();
     const request = http.expectOne(attemptPath + '/submit'); expect(request.request.body).toEqual({ confirmed: true, answers: questions.map(q => ({ questionId: q.id, selectedOptionIds: store.answers()[q.id] })) });
     expect(JSON.stringify(request.request.body)).not.toContain('Correct'); expect(JSON.stringify(request.request.body)).not.toContain('Marks'); request.flush(null); flushMicrotasks();
     const page = quizPage(true); page.attempt = { ...page.attempt!, status: 2 }; page.attempts = [page.attempt]; page.questions = []; page.result = { attemptId, earnedMarks: 2, possibleMarks: 6, passingPercentageSnapshot: 70, isPassed: false };
@@ -49,14 +50,14 @@ describe('Student quiz state and explicit requests', () => {
   }));
   it('uses the stored deadline without automatic expiration/submission or deadline reset', fakeAsync(() => {
     const page = quizPage(true); start(page); store.now.set(Date.parse(page.attempt!.deadline) + 1000); expect(store.remaining()).toBe(0);
-    expect(store.page()?.attempt?.status).toBe(1); http.expectNone('/bff/antiforgery');
+    expect(store.page()?.attempt?.status).toBe(1); http.expectNone(backendBffUrl('/antiforgery'));
     // A deliberate late submission still reaches the authoritative server, which can record expiration.
     store.askSubmit(); void store.submit(); csrf(); http.expectOne(attemptPath + '/submit').flush(null, { status: 409, statusText: 'Expired' }); flushMicrotasks();
     page.attempt = { ...page.attempt!, status: 3 }; page.attempts = [page.attempt]; page.questions = []; read(page, attemptPath);
     expect(store.notice()).toContain('expired'); expect(store.page()?.attempt?.status).toBe(3); expect(store.canSubmit()).toBeFalse();
   }));
   it('retains Completed history/results while blocking mutations and honors attempt limits', fakeAsync(() => {
-    const page = quizPage(true); page.active = false; start(page); expect(store.canStart()).toBeFalse(); expect(store.canSubmit()).toBeFalse(); void store.start(); store.askSubmit(); void store.submit(); http.expectNone('/bff/antiforgery');
+    const page = quizPage(true); page.active = false; start(page); expect(store.canStart()).toBeFalse(); expect(store.canSubmit()).toBeFalse(); void store.start(); store.askSubmit(); void store.submit(); http.expectNone(backendBffUrl('/antiforgery'));
     const limited = quizPage(); limited.quiz!.maxAttempts = 1; limited.attempts = [{ ...page.attempt!, status: 3 }]; start(limited); expect(store.canStart()).toBeFalse();
   }));
   it('recovers ambiguous start via GET history and never replays or trusts an invalid start response', fakeAsync(() => {
@@ -76,7 +77,7 @@ describe('Student quiz state and explicit requests', () => {
     start(); void store.start(); csrf(); const mutation = http.expectOne(root + '/start');
     state.accept({ ...selectedSession(), selectedOrganization: { ...selectedSession().selectedOrganization!, id: 'new-org' } }, () => {}); store.bind(state.session(), false, selection, null);
     read({ ...quizPage(), organizationId: 'new-org' }); mutation.flush({ attemptId }); flushMicrotasks(); expect(store.page()?.organizationId).toBe('new-org'); http.expectNone(root);
-    void store.start(); const bootstrap = http.expectOne('/bff/antiforgery'); state.clear(); store.bind(null, false, selection, null); bootstrap.flush({ requestToken: 'old', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); http.expectNone(root + '/start');
+    void store.start(); const bootstrap = http.expectOne(backendBffUrl('/antiforgery')); state.clear(); store.bind(null, false, selection, null); bootstrap.flush({ requestToken: 'old', headerName: 'X-CSRF-TOKEN' }); flushMicrotasks(); http.expectNone(root + '/start');
     expect(store.page()).toBeNull(); expect(store.answers()).toEqual({});
   }));
   it('rejects foreign response parents and pre-submission result disclosure', fakeAsync(() => {
